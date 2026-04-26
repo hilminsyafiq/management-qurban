@@ -173,86 +173,90 @@ const moduleConfigs = {
     title: "Penabung kurban",
     description: "Data jamaah yang menabung untuk paket kurban.",
     fields: [
-      ["name", "Nama"],
-      ["phone", "Telepon"],
-      ["address", "Alamat"],
-      ["target", "Target paket"],
-      ["balance", "Saldo"],
+      field("name", "Nama"),
+      field("phone", "Telepon", { type: "tel" }),
+      field("address", "Alamat"),
+      field("target", "Target paket", { type: "select", options: ["Patungan sapi", "Kambing individu", "Domba individu"] }),
+      field("balance", "Saldo", { type: "number" }),
     ],
   },
   savings: {
     title: "Tabungan kurban",
     description: "Riwayat setoran tabungan kurban.",
     fields: [
-      ["date", "Tanggal"],
-      ["saver", "Penabung"],
-      ["amount", "Nominal"],
-      ["method", "Metode"],
-      ["note", "Catatan"],
+      field("date", "Tanggal", { type: "date" }),
+      field("saver", "Penabung"),
+      field("amount", "Nominal", { type: "number" }),
+      field("method", "Metode", { type: "select", options: ["Transfer", "Tunai", "QRIS"] }),
+      field("note", "Catatan"),
     ],
   },
   committee: {
     title: "Pengaturan panitia",
     description: "Struktur panitia dan pembagian tugas.",
     fields: [
-      ["name", "Nama"],
-      ["role", "Jabatan"],
-      ["phone", "Telepon"],
-      ["task", "Tugas"],
+      field("name", "Nama"),
+      field("role", "Jabatan", { type: "select", options: ["Ketua", "Sekretaris", "Bendahara", "Seksi Hewan", "Seksi Penyembelihan", "Seksi Distribusi", "Dokumentasi"] }),
+      field("phone", "Telepon", { type: "tel" }),
+      field("task", "Tugas", { type: "select", options: ["Koordinasi umum", "Keuangan dan laporan", "Pendataan hewan", "Pendataan peserta", "Distribusi daging", "Dokumentasi", "Logistik"] }),
     ],
   },
   periods: {
     title: "Periode kurban",
     description: "Periode pelaksanaan kurban yang aktif.",
     fields: [
-      ["name", "Periode"],
-      ["start", "Mulai"],
-      ["end", "Selesai"],
-      ["status", "Status"],
+      field("name", "Periode"),
+      field("start", "Mulai", { type: "date" }),
+      field("end", "Selesai", { type: "date" }),
+      field("status", "Status", { type: "select", options: ["Draft", "Aktif", "Selesai", "Arsip"] }),
     ],
   },
   transactions: {
     title: "Transaksi",
     description: "Pemasukan dan pengeluaran operasional.",
     fields: [
-      ["date", "Tanggal"],
-      ["type", "Tipe"],
-      ["category", "Kategori"],
-      ["amount", "Nominal"],
-      ["note", "Catatan"],
+      field("date", "Tanggal", { type: "date" }),
+      field("type", "Tipe", { type: "select", options: ["Pemasukan", "Pengeluaran"] }),
+      field("category", "Kategori", { type: "select", options: ["Tabungan", "Pembayaran qurban", "Pembelian hewan", "Operasional", "Distribusi", "Donasi", "Lainnya"] }),
+      field("amount", "Nominal", { type: "number" }),
+      field("note", "Catatan"),
     ],
   },
   meatYield: {
     title: "Perolehan daging",
     description: "Hasil sembelihan dan jumlah kantung.",
     fields: [
-      ["animalCode", "Kode hewan"],
-      ["carcassWeight", "Bobot karkas"],
-      ["bags", "Kantung"],
-      ["note", "Catatan"],
+      field("animalCode", "Kode hewan"),
+      field("carcassWeight", "Bobot karkas", { type: "number", step: "0.1" }),
+      field("bags", "Kantung", { type: "number" }),
+      field("note", "Catatan"),
     ],
   },
   recipients: {
     title: "Penerima daging",
     description: "Data penerima paket daging kurban.",
     fields: [
-      ["name", "Nama/Wilayah/Masjid"],
-      ["category", "Kategori"],
-      ["bags", "Kantung"],
-      ["status", "Status"],
+      field("name", "Nama/Wilayah/Masjid"),
+      field("category", "Kategori", { type: "select", options: ["Warga", "Mustahik", "Masjid", "Musholla", "Peserta", "Panitia"] }),
+      field("bags", "Kantung", { type: "number" }),
+      field("status", "Status", { type: "select", options: ["Belum diproses", "Siap dibagikan", "Terjadwal", "Terkirim"] }),
     ],
   },
   minutes: {
     title: "Notulensi rapat",
     description: "Agenda, keputusan, dan PIC rapat panitia.",
     fields: [
-      ["date", "Tanggal"],
-      ["agenda", "Agenda"],
-      ["decision", "Keputusan"],
-      ["pic", "PIC"],
+      field("date", "Tanggal", { type: "date" }),
+      field("agenda", "Agenda", { type: "select", options: ["Rapat awal", "Vendor hewan", "Keuangan", "Penyembelihan", "Distribusi", "Evaluasi"] }),
+      field("decision", "Keputusan"),
+      field("pic", "PIC"),
     ],
   },
 };
+
+function field(name, label, options = {}) {
+  return { name, label, type: options.type || "text", options: options.options || [], step: options.step || "" };
+}
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -880,15 +884,15 @@ function renderModulesForm() {
   ensureModuleShape();
   els.moduleSections.innerHTML = Object.entries(moduleConfigs).map(([key, config]) => {
     const rows = state.modules[key] || [];
-    const fields = config.fields.map(([field, label]) => `
+    const fields = config.fields.map((moduleField) => `
       <label>
-        ${escapeHtml(label)}
-        <input name="${escapeHtml(field)}" data-module-field="${escapeHtml(field)}" />
+        ${escapeHtml(moduleField.label)}
+        ${renderModuleFieldControl(moduleField)}
       </label>
     `).join("");
     const tableRows = rows.length ? rows.map((row, index) => `
       <tr>
-        ${config.fields.map(([field]) => `<td>${escapeHtml(row[field] || "-")}</td>`).join("")}
+        ${config.fields.map((moduleField) => `<td>${escapeHtml(row[moduleField.name] || "-")}</td>`).join("")}
         <td><button class="link-btn danger" data-module-delete="${escapeHtml(key)}" data-module-index="${index}" type="button">Hapus</button></td>
       </tr>
     `).join("") : `<tr><td colspan="${config.fields.length + 1}">Belum ada data.</td></tr>`;
@@ -909,7 +913,7 @@ function renderModulesForm() {
           <table>
             <thead>
               <tr>
-                ${config.fields.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}
+                ${config.fields.map((moduleField) => `<th>${escapeHtml(moduleField.label)}</th>`).join("")}
                 <th>Aksi</th>
               </tr>
             </thead>
@@ -919,6 +923,20 @@ function renderModulesForm() {
       </section>
     `;
   }).join("");
+}
+
+function renderModuleFieldControl(moduleField) {
+  if (moduleField.type === "select") {
+    return `
+      <select name="${escapeHtml(moduleField.name)}" data-module-field="${escapeHtml(moduleField.name)}">
+        <option value="">Pilih ${escapeHtml(moduleField.label)}</option>
+        ${moduleField.options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+      </select>
+    `;
+  }
+
+  const step = moduleField.step ? ` step="${escapeHtml(moduleField.step)}"` : "";
+  return `<input name="${escapeHtml(moduleField.name)}" type="${escapeHtml(moduleField.type)}"${step} data-module-field="${escapeHtml(moduleField.name)}" />`;
 }
 
 function saveModules() {
@@ -964,8 +982,8 @@ function legacyModuleTextToRows(value, fields) {
   if (!value) return [];
   return String(value).split(/\r?\n/).filter(Boolean).map((line) => {
     const parts = line.split("|").map((part) => part.trim());
-    return fields.reduce((row, [field], index) => {
-      row[field] = parts[index] || "";
+    return fields.reduce((row, moduleField, index) => {
+      row[moduleField.name] = parts[index] || "";
       return row;
     }, {});
   });
@@ -981,8 +999,8 @@ function addModuleRecord(moduleKey) {
   if (!config || !form) return;
 
   const record = {};
-  config.fields.forEach(([field]) => {
-    record[field] = form.elements[field] ? form.elements[field].value.trim() : "";
+  config.fields.forEach((moduleField) => {
+    record[moduleField.name] = form.elements[moduleField.name] ? form.elements[moduleField.name].value.trim() : "";
   });
 
   if (!Object.values(record).some(Boolean)) {
