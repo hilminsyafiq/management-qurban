@@ -156,14 +156,14 @@ function renderPublicAnimals() {
               <strong>${escapeHtml(formatSchedule(animal.schedule))}</strong>
             </div>
             <div>
-              <span>Sisa kuota</span>
+              <span>Sisa peserta</span>
               <strong>${Number(animal.available || 0)}</strong>
             </div>
           </div>
         </div>
         <div>
           <div class="progress-track"><div class="progress-fill" style="width:${percent}%"></div></div>
-          <div class="quota-text">${Number(animal.filled || 0)}/${Number(animal.capacity || 0)} kuota terisi</div>
+          <div class="quota-text">${getCapacityText(animal)} - ${Number(animal.filled || 0)}/${Number(animal.capacity || 0)} peserta terisi</div>
         </div>
       </article>
     `;
@@ -180,7 +180,7 @@ function renderPackages() {
       if (!selected || total < selected.total) return { animal, total };
       return selected;
     }, null);
-    const capacity = type === "Sapi" ? "Patungan 1/7 sapi" : "Qurban per ekor";
+    const capacity = type === "Sapi" ? "1 ekor sapi untuk 7 orang" : `1 ekor ${type.toLowerCase()} untuk 1 orang`;
     const available = items.reduce((sum, animal) => sum + Number(animal.available || 0), 0);
     return {
       type,
@@ -196,7 +196,7 @@ function renderPackages() {
       <span>${escapeHtml(item.capacity)}</span>
       <h3>${escapeHtml(item.type)}</h3>
       <strong>${item.price ? money(item.price) : "Hubungi panitia"}</strong>
-      <p>${item.available} kuota tersedia</p>
+      <p>${item.available} slot peserta tersedia</p>
       <small>${escapeHtml(item.status)}</small>
     </article>
   `).join("");
@@ -226,13 +226,18 @@ function renderBookingOptions() {
   if (!publicEls.bookingSelect) return;
   const availableAnimals = publicAnimals.filter((animal) => Number(animal.available || 0) > 0);
   if (!availableAnimals.length) {
-    publicEls.bookingSelect.innerHTML = '<option value="">Belum ada kuota tersedia</option>';
+    publicEls.bookingSelect.innerHTML = '<option value="">Belum ada slot peserta tersedia</option>';
     return;
   }
 
   publicEls.bookingSelect.innerHTML = availableAnimals.map((animal) => {
-    return `<option value="${escapeHtml(animal.id)}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)} (${Number(animal.available || 0)} kuota)</option>`;
+    return `<option value="${escapeHtml(animal.id)}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)} (${Number(animal.available || 0)} slot peserta)</option>`;
   }).join("");
+}
+
+function getCapacityText(animal) {
+  if (animal.type === "Sapi") return "1 ekor sapi untuk 7 orang";
+  return `1 ekor ${String(animal.type || "hewan").toLowerCase()} untuk 1 orang`;
 }
 
 function getFallbackAnimalPhoto(type) {
