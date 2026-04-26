@@ -146,8 +146,10 @@ const els = {
   animalForm: document.querySelector("#animalForm"),
   participantForm: document.querySelector("#participantForm"),
   distributionForm: document.querySelector("#distributionForm"),
+  distributionTargetForm: document.querySelector("#distributionTargetForm"),
+  distributionTargetsTable: document.querySelector("#distributionTargetsTable"),
+  distributionDestinationList: document.querySelector("#distributionDestinationList"),
   moduleSections: document.querySelector("#moduleSections"),
-  distributionTargetsPreview: document.querySelector("#distributionTargetsPreview"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
@@ -421,8 +423,9 @@ function renderSummary() {
   const totalCapacity = state.animals.reduce((sum, animal) => sum + shareLimit(animal.type), 0);
   const filled = state.participants.length;
   const paid = state.participants.reduce((sum, participant) => sum + Number(participant.paid || 0), 0);
-  const packages = Object.entries(state.distribution)
-    .filter(([key]) => !["notes", "targets", "targetsText"].includes(key))
+  const detailedPackages = (state.distribution.targets || []).reduce((sum, target) => sum + Number(target.bags || 0), 0);
+  const packages = detailedPackages || Object.entries(state.distribution)
+    .filter(([key]) => !["notes", "targets"].includes(key))
     .reduce((sum, [, value]) => sum + Number(value || 0), 0);
 
   els.totalAnimals.textContent = state.animals.length;
@@ -534,8 +537,8 @@ function renderDistributionForm() {
       els.distributionForm.elements[key].value = value;
     }
   });
-  els.distributionForm.elements.targetsText.value = distributionTargetsToText(state.distribution.targets || []);
-  renderDistributionTargetsPreview();
+  renderDistributionTargetsTable();
+  renderDistributionDestinationOptions();
 }
 
 function renderValidation() {
@@ -746,55 +749,65 @@ function saveParticipant() {
 
 function saveDistribution() {
   const data = Object.fromEntries(new FormData(els.distributionForm));
-  const targets = parseDistributionTargets(data.targetsText);
   state.distribution = {
     warga: Number(data.warga || 0),
     mustahik: Number(data.mustahik || 0),
     panitia: Number(data.panitia || 0),
     peserta: Number(data.peserta || 0),
     notes: data.notes.trim(),
-    targets,
+    targets: state.distribution.targets || [],
   };
   render();
 }
 
-function parseDistributionTargets(value) {
-  return String(value || "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [destination = "", category = "", bags = "0", pic = "", status = ""] = line.split("|").map((part) => part.trim());
-      return {
-        destination,
-        category,
-        bags: Number(bags || 0),
-        pic,
-        status,
-      };
-    });
-}
-
-function distributionTargetsToText(targets) {
-  return (targets || [])
-    .map((target) => `${target.destination || ""} | ${target.category || ""} | ${Number(target.bags || 0)} | ${target.pic || ""} | ${target.status || ""}`)
-    .join("\n");
-}
-
-function renderDistributionTargetsPreview() {
-  if (!els.distributionTargetsPreview) return;
-  const targets = parseDistributionTargets(els.distributionForm.elements.targetsText.value);
+function renderDistributionTargetsTable() {
+  if (!els.distributionTargetsTable) return;
+  const targets = state.distribution.targets || [];
   if (!targets.length) {
-    els.distributionTargetsPreview.innerHTML = '<div class="empty">Belum ada tujuan distribusi rinci.</div>';
+    els.distributionTargetsTable.innerHTML = '<tr><td colspan="6">Belum ada tujuan distribusi rinci.</td></tr>';
     return;
   }
-  els.distributionTargetsPreview.innerHTML = targets.map((target) => `
-    <div class="target-row">
-      <strong>${escapeHtml(target.destination)}</strong>
-      <span>${escapeHtml(target.category)} - ${Number(target.bags || 0)} kantung</span>
-      <small>${escapeHtml(target.pic || "-")} / ${escapeHtml(target.status || "-")}</small>
-    </div>
+  els.distributionTargetsTable.innerHTML = targets.map((target, index) => `
+    <tr>
+      <td><strong>${escapeHtml(target.destination)}</strong></td>
+      <td>${escapeHtml(target.category)}</td>
+      <td>${Number(target.bags || 0)}</td>
+      <td>${escapeHtml(target.pic || "-")}</td>
+      <td><span class="badge">${escapeHtml(target.status || "-")}</span></td>
+      <td><button class="link-btn danger" data-delete-distribution-target="${index}" type="button">Hapus</button></td>
+    </tr>
   `).join("");
+}
+
+function renderDistributionDestinationOptions() {
+  if (!els.distributionDestinationList) return;
+  const destinations = new Set((state.distribution.targets || []).map((target) => target.destination).filter(Boolean));
+  (state.modules && state.modules.recipients || []).forEach((recipient) => {
+    if (recipient.name) destinations.add(recipient.name);
+  });
+  els.distributionDestinationList.innerHTML = [...destinations].map((destination) => `<option value="${escapeHtml(destination)}"></option>`).join("");
+}
+
+function addDistributionTarget() {
+  const form = els.distributionTargetForm;
+  if (!form.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(form));
+  state.distribution.targets = state.distribution.targets || [];
+  state.distribution.targets.push({
+    destination: data.destination.trim(),
+    category: data.category,
+    bags: Number(data.bags || 0),
+    pic: data.pic.trim(),
+    status: data.status,
+  });
+  form.reset();
+  render();
+}
+
+function deleteDistributionTarget(index) {
+  state.distribution.targets = state.distribution.targets || [];
+  state.distribution.targets.splice(index, 1);
+  render();
 }
 
 function renderModulesForm() {
@@ -962,6 +975,7 @@ document.querySelector("#openParticipantFormBtn").addEventListener("click", () =
 document.querySelector("#saveAnimalBtn").addEventListener("click", saveAnimal);
 document.querySelector("#saveParticipantBtn").addEventListener("click", saveParticipant);
 document.querySelector("#saveDistributionBtn").addEventListener("click", saveDistribution);
+document.querySelector("#addDistributionTargetBtn").addEventListener("click", addDistributionTarget);
 document.querySelector("#saveModulesBtn").addEventListener("click", saveModules);
 document.querySelector("#printSavingsBtn").addEventListener("click", () => printModuleReport("Laporan Tabungan Kurban", state.modules && state.modules.savings));
 document.querySelector("#printTransactionsBtn").addEventListener("click", () => printModuleReport("Laporan Transaksi Kurban", state.modules && state.modules.transactions));
@@ -997,7 +1011,6 @@ document.querySelector("#animalPhotoFile").addEventListener("change", async (eve
   const preview = await readCompressedPhoto(event.target.files[0]);
   setPhotoPreview(preview);
 });
-els.distributionForm.elements.targetsText.addEventListener("input", renderDistributionTargetsPreview);
 els.participantForm.elements.animalId.addEventListener("change", (event) => {
   els.participantForm.elements.due.value = suggestDue(event.target.value);
 });
@@ -1019,6 +1032,7 @@ document.addEventListener("click", (event) => {
   const moduleAdd = event.target.dataset.moduleAdd;
   const moduleDelete = event.target.dataset.moduleDelete;
   const moduleIndex = event.target.dataset.moduleIndex;
+  const deleteDistributionTargetIndex = event.target.dataset.deleteDistributionTarget;
 
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
@@ -1026,6 +1040,7 @@ document.addEventListener("click", (event) => {
   if (deleteParticipantId) deleteParticipant(deleteParticipantId);
   if (moduleAdd) addModuleRecord(moduleAdd);
   if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));
+  if (deleteDistributionTargetIndex !== undefined) deleteDistributionTarget(Number(deleteDistributionTargetIndex));
 });
 
 async function bootstrap() {

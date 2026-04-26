@@ -179,14 +179,65 @@
                 Catatan distribusi
                 <textarea name="notes" rows="4"></textarea>
               </label>
-              <label class="wide">
-                Rincian tujuan distribusi
-                <textarea name="targetsText" rows="7" placeholder="Format per baris: Wilayah/Masjid | Kategori | Jumlah kantung | PIC | Status"></textarea>
-              </label>
             </form>
             <div class="distribution-preview">
-              <h3>Preview tujuan distribusi</h3>
-              <div id="distributionTargetsPreview"></div>
+              <div class="module-head">
+                <div>
+                  <h3>Tujuan distribusi per wilayah/masjid</h3>
+                  <p>Pilih dari list yang sudah ada atau ketik tujuan baru.</p>
+                </div>
+                <button class="primary-btn" id="addDistributionTargetBtn" type="button">Tambah tujuan</button>
+              </div>
+              <form class="distribution-target-form" id="distributionTargetForm">
+                <label>
+                  Wilayah/Masjid
+                  <input name="destination" list="distributionDestinationList" placeholder="Masjid Al-Ikhlas / RT 01" required />
+                  <datalist id="distributionDestinationList"></datalist>
+                </label>
+                <label>
+                  Kategori
+                  <select name="category">
+                    <option value="Warga">Warga</option>
+                    <option value="Mustahik">Mustahik</option>
+                    <option value="Masjid">Masjid</option>
+                    <option value="Musholla">Musholla</option>
+                    <option value="Peserta">Peserta</option>
+                    <option value="Panitia">Panitia</option>
+                  </select>
+                </label>
+                <label>
+                  Jumlah kantung
+                  <input name="bags" min="1" type="number" required />
+                </label>
+                <label>
+                  PIC
+                  <input name="pic" placeholder="Nama penanggung jawab" />
+                </label>
+                <label>
+                  Status
+                  <select name="status">
+                    <option value="Menunggu pengemasan">Menunggu pengemasan</option>
+                    <option value="Siap dibagikan">Siap dibagikan</option>
+                    <option value="Terjadwal">Terjadwal</option>
+                    <option value="Terkirim">Terkirim</option>
+                  </select>
+                </label>
+              </form>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Wilayah/Masjid</th>
+                      <th>Kategori</th>
+                      <th>Kantung</th>
+                      <th>PIC</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="distributionTargetsTable"></tbody>
+                </table>
+              </div>
             </div>
           </div>
 

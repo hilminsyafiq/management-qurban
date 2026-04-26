@@ -467,6 +467,13 @@ th {
   color: var(--muted);
 }
 
+.distribution-target-form {
+  display: grid;
+  grid-template-columns: 1.4fr .9fr .7fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -613,6 +620,7 @@ dialog::backdrop {
   .summary-grid,
   .workspace,
   .distribution-grid,
+  .distribution-target-form,
   .module-entry-form {
     grid-template-columns: 1fr;
   }
