@@ -44,6 +44,17 @@ const demoAnimals = [
 ];
 
 let publicAnimals = [];
+let publicDistribution = {
+  warga: 120,
+  mustahik: 48,
+  peserta: 16,
+  panitia: 20,
+  targets: [
+    { destination: "RT 01 Kampung Melati", category: "Warga", bags: 40, pic: "Pak Ahmad", status: "Siap dibagikan" },
+    { destination: "Masjid Al-Ikhlas", category: "Mustahik", bags: 35, pic: "Bu Siti", status: "Terjadwal" },
+    { destination: "Musholla An-Nur", category: "Mustahik", bags: 28, pic: "Pak Ridwan", status: "Menunggu pengemasan" },
+  ],
+};
 
 const publicEls = {
   list: document.querySelector("#publicAnimalList"),
@@ -57,6 +68,8 @@ const publicEls = {
   bookingForm: document.querySelector("#bookingForm"),
   bookingSelect: document.querySelector("#bookingAnimalSelect"),
   bookingResult: document.querySelector("#bookingResult"),
+  distributionSummary: document.querySelector("#distributionSummary"),
+  distributionTargets: document.querySelector("#distributionTargets"),
 };
 
 function money(value) {
@@ -115,6 +128,7 @@ function renderPublicAnimals() {
   renderPackages();
   renderGallery();
   renderBookingOptions();
+  renderDistribution();
 
   if (!filtered.length) {
     publicEls.list.innerHTML = '<div class="empty-state">Tidak ada hewan yang cocok dengan filter saat ini.</div>';
@@ -172,6 +186,40 @@ function renderPublicAnimals() {
       </article>
     `;
   }).join("");
+}
+
+function renderDistribution() {
+  if (publicEls.distributionSummary) {
+    publicEls.distributionSummary.innerHTML = `
+      <div><span>Warga sekitar</span><strong>${Number(publicDistribution.warga || 0)}</strong></div>
+      <div><span>Mustahik</span><strong>${Number(publicDistribution.mustahik || 0)}</strong></div>
+      <div><span>Peserta</span><strong>${Number(publicDistribution.peserta || 0)}</strong></div>
+      <div><span>Panitia</span><strong>${Number(publicDistribution.panitia || 0)}</strong></div>
+    `;
+  }
+
+  if (!publicEls.distributionTargets) return;
+  const targets = publicDistribution.targets || [];
+  if (!targets.length) {
+    publicEls.distributionTargets.innerHTML = "";
+    return;
+  }
+
+  publicEls.distributionTargets.innerHTML = `
+    <h3>Tujuan distribusi per wilayah/masjid</h3>
+    ${targets.map((target) => `
+      <article>
+        <div>
+          <strong>${escapeHtml(target.destination)}</strong>
+          <span>${escapeHtml(target.category || "Penerima")}</span>
+        </div>
+        <div>
+          <b>${Number(target.bags || 0)} kantung</b>
+          <small>${escapeHtml(target.pic || "-")} - ${escapeHtml(target.status || "-")}</small>
+        </div>
+      </article>
+    `).join("")}
+  `;
 }
 
 function renderPackages() {
@@ -282,6 +330,7 @@ async function loadAnimals() {
     try {
       const data = await fetchJson(`${apiBaseUrl}?action=publicAnimals`);
       publicAnimals = data.animals && data.animals.length ? data.animals : demoAnimals;
+      if (data.distribution) publicDistribution = data.distribution;
     } catch (error) {
       publicAnimals = demoAnimals;
     }
@@ -298,6 +347,7 @@ async function loadAnimals() {
   try {
     const data = await loadWithJsonp(appsScriptUrl);
     publicAnimals = data.animals && data.animals.length ? data.animals : demoAnimals;
+    if (data.distribution) publicDistribution = data.distribution;
   } catch (error) {
     publicAnimals = demoAnimals;
   }

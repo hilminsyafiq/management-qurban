@@ -46,6 +46,12 @@ const defaultState = {
     panitia: 20,
     peserta: 16,
     notes: "Prioritaskan mustahik dan warga sekitar masjid.",
+    targets: [
+      { destination: "RT 01 Kampung Melati", category: "Warga", bags: 40, pic: "Pak Ahmad", status: "Siap dibagikan" },
+      { destination: "Masjid Al-Ikhlas", category: "Mustahik", bags: 35, pic: "Bu Siti", status: "Terjadwal" },
+      { destination: "Musholla An-Nur", category: "Mustahik", bags: 28, pic: "Pak Ridwan", status: "Menunggu pengemasan" },
+      { destination: "Panitia lapangan", category: "Panitia", bags: 12, pic: "Koordinator", status: "Cadangan operasional" },
+    ],
   },
 };
 
@@ -108,6 +114,7 @@ const els = {
   animalForm: document.querySelector("#animalForm"),
   participantForm: document.querySelector("#participantForm"),
   distributionForm: document.querySelector("#distributionForm"),
+  distributionTargetsPreview: document.querySelector("#distributionTargetsPreview"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
@@ -293,7 +300,7 @@ function renderSummary() {
   const filled = state.participants.length;
   const paid = state.participants.reduce((sum, participant) => sum + Number(participant.paid || 0), 0);
   const packages = Object.entries(state.distribution)
-    .filter(([key]) => key !== "notes")
+    .filter(([key]) => !["notes", "targets", "targetsText"].includes(key))
     .reduce((sum, [, value]) => sum + Number(value || 0), 0);
 
   els.totalAnimals.textContent = state.animals.length;
@@ -401,10 +408,12 @@ function renderParticipantsTable() {
 
 function renderDistributionForm() {
   Object.entries(state.distribution).forEach(([key, value]) => {
-    if (els.distributionForm.elements[key]) {
+    if (key !== "targets" && els.distributionForm.elements[key]) {
       els.distributionForm.elements[key].value = value;
     }
   });
+  els.distributionForm.elements.targetsText.value = distributionTargetsToText(state.distribution.targets || []);
+  renderDistributionTargetsPreview();
 }
 
 function renderValidation() {
@@ -615,14 +624,55 @@ function saveParticipant() {
 
 function saveDistribution() {
   const data = Object.fromEntries(new FormData(els.distributionForm));
+  const targets = parseDistributionTargets(data.targetsText);
   state.distribution = {
     warga: Number(data.warga || 0),
     mustahik: Number(data.mustahik || 0),
     panitia: Number(data.panitia || 0),
     peserta: Number(data.peserta || 0),
     notes: data.notes.trim(),
+    targets,
   };
   render();
+}
+
+function parseDistributionTargets(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [destination = "", category = "", bags = "0", pic = "", status = ""] = line.split("|").map((part) => part.trim());
+      return {
+        destination,
+        category,
+        bags: Number(bags || 0),
+        pic,
+        status,
+      };
+    });
+}
+
+function distributionTargetsToText(targets) {
+  return (targets || [])
+    .map((target) => `${target.destination || ""} | ${target.category || ""} | ${Number(target.bags || 0)} | ${target.pic || ""} | ${target.status || ""}`)
+    .join("\n");
+}
+
+function renderDistributionTargetsPreview() {
+  if (!els.distributionTargetsPreview) return;
+  const targets = parseDistributionTargets(els.distributionForm.elements.targetsText.value);
+  if (!targets.length) {
+    els.distributionTargetsPreview.innerHTML = '<div class="empty">Belum ada tujuan distribusi rinci.</div>';
+    return;
+  }
+  els.distributionTargetsPreview.innerHTML = targets.map((target) => `
+    <div class="target-row">
+      <strong>${escapeHtml(target.destination)}</strong>
+      <span>${escapeHtml(target.category)} - ${Number(target.bags || 0)} kantung</span>
+      <small>${escapeHtml(target.pic || "-")} / ${escapeHtml(target.status || "-")}</small>
+    </div>
+  `).join("");
 }
 
 function deleteAnimal(animalId) {
@@ -695,6 +745,7 @@ document.querySelector("#animalPhotoFile").addEventListener("change", async (eve
   const preview = await readCompressedPhoto(event.target.files[0]);
   setPhotoPreview(preview);
 });
+els.distributionForm.elements.targetsText.addEventListener("input", renderDistributionTargetsPreview);
 els.participantForm.elements.animalId.addEventListener("change", (event) => {
   els.participantForm.elements.due.value = suggestDue(event.target.value);
 });

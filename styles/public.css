@@ -618,6 +618,46 @@ select {
   gap: 14px;
 }
 
+.distribution-targets {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.distribution-targets h3 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.distribution-targets article {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.78);
+  border: 1px solid rgba(222, 211, 192, 0.95);
+  box-shadow: 8px 10px 22px rgba(76, 55, 25, 0.08);
+}
+
+.distribution-targets strong,
+.distribution-targets span,
+.distribution-targets b,
+.distribution-targets small {
+  display: block;
+}
+
+.distribution-targets span,
+.distribution-targets small {
+  color: var(--muted);
+}
+
+.distribution-targets b {
+  color: var(--accent-dark);
+  text-align: right;
+}
+
 .distribution-grid div {
   min-height: 145px;
   padding: 22px;

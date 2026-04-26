@@ -153,7 +153,7 @@
             <div class="section-head">
               <div>
                 <h2>Distribusi daging</h2>
-                <p>Atur jumlah paket warga, mustahik, panitia, dan peserta.</p>
+                <p>Atur tujuan distribusi per wilayah atau masjid, jumlah kantung, dan status pengiriman.</p>
               </div>
               <button class="primary-btn" id="saveDistributionBtn" type="button">Simpan distribusi</button>
             </div>
@@ -178,7 +178,15 @@
                 Catatan distribusi
                 <textarea name="notes" rows="4"></textarea>
               </label>
+              <label class="wide">
+                Rincian tujuan distribusi
+                <textarea name="targetsText" rows="7" placeholder="Format per baris: Wilayah/Masjid | Kategori | Jumlah kantung | PIC | Status"></textarea>
+              </label>
             </form>
+            <div class="distribution-preview">
+              <h3>Preview tujuan distribusi</h3>
+              <div id="distributionTargetsPreview"></div>
+            </div>
           </div>
         </div>
 

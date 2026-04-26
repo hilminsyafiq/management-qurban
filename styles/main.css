@@ -403,6 +403,35 @@ th {
   gap: 14px;
 }
 
+.distribution-preview {
+  margin: 18px 22px 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.distribution-preview h3 {
+  margin: 0 0 12px;
+}
+
+#distributionTargetsPreview {
+  display: grid;
+  gap: 10px;
+}
+
+.target-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 4px;
+}
+
+.target-row span,
+.target-row small {
+  color: var(--muted);
+}
+
 label {
   display: grid;
   gap: 7px;
