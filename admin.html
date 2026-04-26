@@ -12,11 +12,15 @@
         <img src="assets/qurban-mark.svg" alt="" />
         <div>
           <p class="eyebrow">Area panitia</p>
-          <h2>Masukkan password admin</h2>
-          <p>Password diperlukan untuk membuka data dan menyimpan perubahan.</p>
+          <h2>Masuk akun qurban</h2>
+          <p>Gunakan akun admin atau panitia untuk membuka data dan menyimpan perubahan.</p>
         </div>
         <label>
-          Password admin
+          Username
+          <input id="adminUsernameInput" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          Password
           <input id="adminPasswordInput" type="password" autocomplete="current-password" required />
         </label>
         <div class="login-error" id="adminLoginError" role="alert"></div>
@@ -208,6 +212,8 @@
             </div>
             <form class="module-entry-form user-form" id="userForm">
               <label>Nama <input name="name" required /></label>
+              <label>Username <input name="username" required autocomplete="off" /></label>
+              <label>Password <input name="password" required type="password" autocomplete="new-password" /></label>
               <label>Role
                 <select name="role">
                   <option value="Admin">Admin</option>
@@ -227,6 +233,7 @@
                 <thead>
                   <tr>
                     <th>Nama</th>
+                    <th>Username</th>
                     <th>Role</th>
                     <th>Telepon</th>
                     <th>Status</th>
@@ -362,6 +369,7 @@
             </div>
             <form class="settings-grid" id="profileForm">
               <label>Nama akun <input name="name" required /></label>
+              <label>Username <input name="username" readonly /></label>
               <label>Telepon <input name="phone" /></label>
               <label>Role aktif <input name="role" readonly /></label>
               <label>Status <input name="status" readonly /></label>
@@ -400,7 +408,10 @@
                 <h2>Peserta qurban</h2>
                 <p>Pencatatan shohibul qurban, hewan yang dipilih, dan pembayaran.</p>
               </div>
-              <button class="primary-btn" id="openParticipantFormBtn" type="button">Tambah peserta</button>
+              <div class="topbar-actions">
+                <button class="ghost-btn" id="printParticipantCardsBtn" type="button">Cetak kartu</button>
+                <button class="primary-btn" id="openParticipantFormBtn" type="button">Tambah peserta</button>
+              </div>
             </div>
             <div class="table-wrap">
               <table>

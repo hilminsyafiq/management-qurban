@@ -14,19 +14,37 @@ function requireAdminToken(event, body) {
 
 function requireAdminAccess(event, body) {
   requireAdminToken(event, body);
-  requireAdminPassword(event, body);
+  if (hasValidAdminPassword(event, body) || hasValidUserAccount(event, body)) return;
+  throw new Error("Akun atau password tidak valid.");
 }
 
 function requireAdminPassword(event, body) {
+  if (hasValidAdminPassword(event, body)) return;
+  throw new Error("Password admin tidak valid.");
+}
+
+function hasValidAdminPassword(event, body) {
   const expectedPassword = getScriptProperty("ADMIN_PASSWORD");
   if (!expectedPassword) {
     throw new Error("ADMIN_PASSWORD belum terbaca dari Script Properties project Apps Script yang sedang dipakai Web App.");
   }
 
   const password = getAdminPassword(event, body);
-  if (!password || password !== expectedPassword) {
-    throw new Error("Password admin tidak valid.");
-  }
+  return Boolean(password && password === expectedPassword);
+}
+
+function hasValidUserAccount(event, body) {
+  const username = getLoginUsername(event, body).toLowerCase();
+  const password = getLoginPassword(event, body);
+  if (!username || !password) return false;
+
+  const modules = getModules();
+  const users = Array.isArray(modules.users) ? modules.users : [];
+  return users.some((user) => {
+    return String(user.status || "Aktif") === "Aktif"
+      && String(user.username || "").trim().toLowerCase() === username
+      && String(user.password || "") === password;
+  });
 }
 
 function isPublicGetAction(action) {
@@ -42,6 +60,18 @@ function getAdminToken(event, body) {
 function getAdminPassword(event, body) {
   const fromBody = body && body.adminPassword;
   const fromParam = getParam(event, "adminPassword", "");
+  return String(fromBody || fromParam || "").trim();
+}
+
+function getLoginUsername(event, body) {
+  const fromBody = body && body.loginUsername;
+  const fromParam = getParam(event, "loginUsername", "");
+  return String(fromBody || fromParam || "").trim();
+}
+
+function getLoginPassword(event, body) {
+  const fromBody = body && body.loginPassword;
+  const fromParam = getParam(event, "loginPassword", "");
   return String(fromBody || fromParam || "").trim();
 }
 

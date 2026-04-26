@@ -21,6 +21,9 @@ Project ini dibuat sebagai aplikasi frontend statis. Semua data tersimpan di `lo
 - Logic role:
   - Admin melihat dashboard, pengaturan aplikasi, wilayah, user, kupon, scan, riwayat, laporan, profil, dan modul data pendukung.
   - Panitia melihat dashboard, scan kupon, riwayat scan, dan profil akun.
+  - login memakai username dan password dari `modules.users`.
+  - Apps Script menerima akses jika `ADMIN_PASSWORD` cocok atau akun di `Modules.users` aktif dan password cocok.
+  - akun bawaan lokal: `admin/admin123` untuk Admin dan `panitia/panitia123` untuk Panitia.
 - Logic kupon:
   - generate kupon otomatis berdasarkan wilayah dan kategori.
   - import kupon pengkurban dari data peserta.
@@ -39,6 +42,7 @@ Project ini dibuat sebagai aplikasi frontend statis. Semua data tersimpan di `lo
   - iuran otomatis disarankan dari harga beli + biaya operasional dibagi kuota hewan.
   - peserta baru ditolak jika kuota hewan sudah penuh.
   - status pembayaran dihitung dari `paid >= due`.
+  - kartu peserta dapat dicetak per peserta atau seluruh peserta dari halaman Peserta.
 - Logic distribusi:
   - paket warga, mustahik, panitia, dan peserta.
   - total paket masuk ke ringkasan.
@@ -93,6 +97,15 @@ Action POST:
 - `deleteParticipant`
 - `saveDistribution`
 - `syncState`
+
+`syncState` menulis seluruh state aplikasi ke Google Sheet:
+
+- `Animals`: data hewan.
+- `Participants`: data peserta/pengkurban.
+- `Distribution`: paket distribusi dan target distribusi.
+- `Modules`: data tambahan dalam JSON per key, termasuk `appSettings`, `areas`, `users`, `coupons`, `scanHistory`, `profile`, dan modul teknis lama.
+
+Dengan pola ini, beberapa panitia dapat memakai URL Vercel yang sama. Saat login, frontend memanggil `GET state` untuk mengambil data terbaru dari Google Sheet. Setiap perubahan lokal akan dikirim kembali melalui `POST syncState`.
 
 ## Folder `api`
 

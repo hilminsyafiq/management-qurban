@@ -29,6 +29,7 @@ Aplikasi frontend statis untuk membantu panitia mencatat hewan qurban, peserta, 
 - Pengaturan aplikasi: data masjid/lembaga, tahun kurban, kontak, dan status pembagian.
 - Data wilayah distribusi.
 - Data user admin dan panitia scan.
+- Akun login berbasis username/password dengan role `Admin` dan `Panitia`.
 - Data kupon: generate otomatis, import kupon pengkurban dari peserta, dan kupon umum tanpa nama.
 - Scan kupon manual untuk verifikasi pengambilan daging.
 - Riwayat scan berisi petugas, penerima, waktu, dan status verifikasi.
@@ -36,6 +37,7 @@ Aplikasi frontend statis untuk membantu panitia mencatat hewan qurban, peserta, 
 - CRUD hewan qurban.
 - Profil hewan dengan foto/URL gambar.
 - CRUD peserta qurban.
+- Cetak kartu peserta qurban per orang atau seluruh peserta.
 - Validasi kuota sapi 7 peserta dan kambing/domba 1 peserta.
 - Rekap dana terkumpul dan paket distribusi.
 - Validasi data panitia: kuota, jadwal, peserta kosong, dan pembayaran belum lunas.
@@ -49,11 +51,13 @@ Aplikasi frontend statis untuk membantu panitia mencatat hewan qurban, peserta, 
    - `Animals`
    - `Participants`
    - `Distribution`
+   - `Modules`
 5. Deploy sebagai Web App dengan akses `Anyone`.
 6. Jalankan fungsi `installSecureBackend()` sekali dari Apps Script editor.
 7. Salin nilai `adminToken` dari hasil eksekusi fungsi tersebut.
-8. Deploy sebagai Web App dengan akses `Anyone`.
-9. Salin URL Web App untuk dipakai di Vercel Environment Variable `GAS_WEB_APP_URL`.
+8. Salin nilai `adminPassword` dari hasil eksekusi fungsi tersebut untuk login admin/panitia.
+9. Deploy sebagai Web App dengan akses `Anyone`.
+10. Salin URL Web App untuk dipakai di Vercel Environment Variable `GAS_WEB_APP_URL`.
 
 Script Properties yang dipakai:
 
@@ -67,6 +71,24 @@ Endpoint utama:
 - `POST action=saveAnimal`: simpan hewan.
 - `POST action=saveParticipant`: simpan peserta.
 - `POST action=saveDistribution`: simpan distribusi.
+- `POST action=syncState`: sinkron semua data frontend ke Google Sheet.
+
+Sheet `Modules` menyimpan data operasional tambahan dalam format JSON per key:
+
+- `appSettings`: pengaturan masjid/lembaga, tahun kurban, kontak, dan status aplikasi.
+- `areas`: wilayah distribusi.
+- `users`: akun admin dan panitia.
+- `coupons`: kupon distribusi.
+- `scanHistory`: riwayat scan kupon.
+- `profile`: profil akun aktif.
+- modul lama seperti `savers`, `transactions`, `meatYield`, `recipients`, dan `minutes`.
+
+Akun demo lokal:
+
+- Admin: username `admin`, password `admin123`.
+- Panitia: username `panitia`, password `panitia123`.
+
+Pada mode Vercel + Google Apps Script, login bisa memakai `ADMIN_PASSWORD` master atau akun aktif yang tersimpan di `Modules.users`. Role `Panitia` hanya membuka dashboard, scan kupon, riwayat scan, dan profil.
 
 Kolom hewan mendukung `photoUrl`. Isi dengan URL gambar publik, misalnya gambar dari Google Drive yang sudah dibuat public, CDN, atau path asset lokal.
 
@@ -85,6 +107,7 @@ Alur yang disiapkan:
 5. Website publik memanggil `/api/gas?action=publicAnimals`.
 6. Admin memanggil `/api/gas?action=state` dan `POST /api/gas`.
 7. File `api/gas.js` meneruskan request ke Google Apps Script memakai `process.env.GAS_WEB_APP_URL` dan `process.env.GAS_ADMIN_TOKEN`.
+8. Setiap panitia yang login melalui URL Vercel akan memuat data terbaru dari Google Sheet dan perubahan akan disinkronkan lewat `syncState`.
 
 Catatan penting:
 

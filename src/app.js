@@ -1,5 +1,6 @@
 const STORAGE_KEY = "qurbanops-state-v1";
 const ADMIN_SESSION_KEY = "qurbanops-admin-password";
+const ACCOUNT_SESSION_KEY = "qurbanops-active-account";
 const fallbackPhotos = {
   Sapi: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82",
   Kambing: "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82",
@@ -108,8 +109,8 @@ const defaultState = {
       { id: crypto.randomUUID(), name: "RT 02 Kampung Melati", coordinator: "Bu Aminah", quota: 35, notes: "Distribusi setelah zuhur" },
     ],
     users: [
-      { id: crypto.randomUUID(), name: "Admin Qurban", role: "Admin", phone: "0812-9000-1111", status: "Aktif" },
-      { id: crypto.randomUUID(), name: "Petugas Scan", role: "Panitia", phone: "0812-9000-2222", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Admin Qurban", username: "admin", password: "admin123", role: "Admin", phone: "0812-9000-1111", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Petugas Scan", username: "panitia", password: "panitia123", role: "Panitia", phone: "0812-9000-2222", status: "Aktif" },
     ],
     coupons: [],
     scanHistory: [],
@@ -209,6 +210,7 @@ const els = {
   profileForm: document.querySelector("#profileForm"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
+  adminUsernameInput: document.querySelector("#adminUsernameInput"),
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
   adminLoginError: document.querySelector("#adminLoginError"),
 };
@@ -311,6 +313,12 @@ function ensureOpsShape() {
   ["areas", "users", "coupons", "scanHistory"].forEach((key) => {
     if (!Array.isArray(state.modules[key])) state.modules[key] = structuredClone(defaults[key]);
   });
+  state.modules.users = state.modules.users.map((user, index) => ({
+    ...user,
+    username: user.username || String(user.role || "").toLowerCase() || `user${index + 1}`,
+    password: user.password || (String(user.role || "").toLowerCase() === "admin" ? "admin123" : "panitia123"),
+    status: user.status || "Aktif",
+  }));
 }
 
 function loadState() {
@@ -347,11 +355,38 @@ function setAdminPassword(password) {
 
 function clearAdminPassword() {
   sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  sessionStorage.removeItem(ACCOUNT_SESSION_KEY);
+}
+
+function getActiveAccount() {
+  try {
+    return JSON.parse(sessionStorage.getItem(ACCOUNT_SESSION_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function setActiveAccount(account) {
+  sessionStorage.setItem(ACCOUNT_SESSION_KEY, JSON.stringify({
+    id: account.id || "",
+    name: account.name || "",
+    username: account.username || "",
+    role: account.role || "Panitia",
+    phone: account.phone || "",
+    status: account.status || "Aktif",
+  }));
 }
 
 function getAdminHeaders() {
   const password = getAdminPassword();
-  return password ? { "X-Admin-Password": password } : {};
+  const account = getActiveAccount();
+  const headers = {};
+  if (password) headers["X-Admin-Password"] = password;
+  if (account && account.username && password) {
+    headers["X-Login-Username"] = account.username;
+    headers["X-Login-Password"] = password;
+  }
+  return headers;
 }
 
 async function loadRemoteState() {
@@ -402,17 +437,22 @@ async function syncRemoteState() {
   }
 }
 
-async function verifyAdminPassword(password) {
-  if (!canUseRemoteApi()) return Boolean(password.trim());
+async function verifyAdminPassword(password, username = "") {
+  if (!canUseRemoteApi()) {
+    ensureOpsShape();
+    return findLocalAccount(username, password) || (password.trim() ? makeMasterAccount(username) : null);
+  }
 
   const response = await fetch(`${getApiBaseUrl()}?action=state`, {
     headers: {
       Accept: "application/json",
       "X-Admin-Password": password,
+      "X-Login-Username": username,
+      "X-Login-Password": password,
     },
   });
   const data = await response.json();
-  if (!response.ok || data.ok === false) throw new Error(data.error || "Password admin salah.");
+  if (!response.ok || data.ok === false) throw new Error(data.error || "Akun atau password salah.");
 
   state = {
     animals: Array.isArray(data.animals) ? data.animals : [],
@@ -421,7 +461,8 @@ async function verifyAdminPassword(password) {
     modules: data.modules || structuredClone(defaultState.modules),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  return true;
+  ensureOpsShape();
+  return findLocalAccount(username, password) || makeMasterAccount(username);
 }
 
 function unlockAdmin() {
@@ -433,7 +474,9 @@ async function requireAdminLogin() {
   if (!els.adminLoginDialog) return;
   if (getAdminPassword()) {
     try {
-      await verifyAdminPassword(getAdminPassword());
+      const account = await verifyAdminPassword(getAdminPassword(), getActiveAccount() && getActiveAccount().username);
+      setActiveAccount(account);
+      activeRole = normalizeRole(account.role);
       unlockAdmin();
       return;
     } catch {
@@ -441,6 +484,25 @@ async function requireAdminLogin() {
     }
   }
   els.adminLoginDialog.showModal();
+}
+
+function normalizeRole(role) {
+  return String(role || "").toLowerCase() === "admin" ? "admin" : "panitia";
+}
+
+function makeMasterAccount(username) {
+  const name = username && username.trim() ? username.trim() : "Admin Qurban";
+  return { id: "master", name, username: username || "admin", role: "Admin", phone: "", status: "Aktif" };
+}
+
+function findLocalAccount(username, password) {
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const normalizedPassword = String(password || "");
+  return (state.modules.users || []).find((user) => {
+    return String(user.status || "Aktif") === "Aktif"
+      && String(user.username || "").trim().toLowerCase() === normalizedUsername
+      && String(user.password || "") === normalizedPassword;
+  }) || null;
 }
 
 function money(value) {
@@ -604,12 +666,13 @@ function renderUsersTable() {
   els.usersTable.innerHTML = state.modules.users.length ? state.modules.users.map((user) => `
     <tr>
       <td><strong>${escapeHtml(user.name)}</strong></td>
+      <td>${escapeHtml(user.username || "-")}</td>
       <td>${escapeHtml(user.role)}</td>
       <td>${escapeHtml(user.phone || "-")}</td>
       <td><span class="badge ${user.status === "Nonaktif" ? "danger" : ""}">${escapeHtml(user.status)}</span></td>
       <td><button class="link-btn danger" data-delete-user="${escapeHtml(user.id)}" type="button">Hapus</button></td>
     </tr>
-  `).join("") : '<tr><td colspan="5">Belum ada user.</td></tr>';
+  `).join("") : '<tr><td colspan="6">Belum ada user.</td></tr>';
 }
 
 function renderCouponsView() {
@@ -678,10 +741,12 @@ function renderReportsView() {
 
 function renderProfileForm() {
   if (!els.profileForm) return;
-  els.profileForm.elements.name.value = state.modules.profile.name || "";
-  els.profileForm.elements.phone.value = state.modules.profile.phone || "";
+  const account = getActiveAccount();
+  els.profileForm.elements.name.value = account ? account.name : state.modules.profile.name || "";
+  els.profileForm.elements.username.value = account ? account.username : "";
+  els.profileForm.elements.phone.value = account ? account.phone : state.modules.profile.phone || "";
   els.profileForm.elements.role.value = activeRole === "admin" ? "Admin" : "Panitia";
-  els.profileForm.elements.status.value = state.modules.profile.status || "Aktif";
+  els.profileForm.elements.status.value = account ? account.status : state.modules.profile.status || "Aktif";
 }
 
 function renderAnimalBoard() {
@@ -772,6 +837,7 @@ function renderParticipantsTable() {
           <td>
             <div class="row-actions">
               <button class="link-btn" data-edit-participant="${participant.id}" type="button">Edit</button>
+              <button class="link-btn" data-print-participant="${participant.id}" type="button">Cetak</button>
               <button class="link-btn danger" data-delete-participant="${participant.id}" type="button">Hapus</button>
             </div>
           </td>
@@ -1215,6 +1281,155 @@ function printModuleReport(title, content) {
   report.print();
 }
 
+function printParticipantCards(participantIds) {
+  const ids = Array.isArray(participantIds) ? participantIds : [];
+  const participants = ids.length
+    ? state.participants.filter((participant) => ids.includes(participant.id))
+    : state.participants;
+
+  if (!participants.length) {
+    alert("Belum ada peserta untuk dicetak.");
+    return;
+  }
+
+  const settings = state.modules && state.modules.appSettings ? state.modules.appSettings : {};
+  const title = `Kartu Peserta Qurban - ${settings.institutionName || "QurbanOps"}`;
+  const cards = participants.map((participant) => renderParticipantCard(participant, settings)).join("");
+  const report = window.open("", "_blank", "width=960,height=720");
+  if (!report) return;
+
+  report.document.write(`
+    <!doctype html>
+    <html lang="id">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            color: #1b1a17;
+            font-family: Arial, sans-serif;
+            background: #fff;
+          }
+          .sheet {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10mm;
+          }
+          .card {
+            min-height: 86mm;
+            border: 1.4px solid #153d34;
+            border-radius: 8px;
+            padding: 12px;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 10px;
+            break-inside: avoid;
+          }
+          .head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid #ddd4c3;
+            padding-bottom: 8px;
+          }
+          .brand { font-size: 12px; color: #706b62; text-transform: uppercase; font-weight: 700; }
+          h1 { margin: 3px 0 0; font-size: 18px; }
+          .token {
+            border: 1px solid #153d34;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+            min-width: 92px;
+          }
+          .token span { display: block; font-size: 10px; color: #706b62; text-transform: uppercase; }
+          .token strong { display: block; margin-top: 2px; font-size: 18px; letter-spacing: 1px; }
+          dl {
+            display: grid;
+            grid-template-columns: 88px 1fr;
+            gap: 7px 10px;
+            margin: 0;
+            font-size: 12px;
+          }
+          dt { color: #706b62; font-weight: 700; }
+          dd { margin: 0; font-weight: 700; }
+          .foot {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: end;
+            border-top: 1px dashed #b9aa91;
+            padding-top: 8px;
+            font-size: 11px;
+            color: #706b62;
+          }
+          .signature {
+            width: 110px;
+            text-align: center;
+          }
+          .line {
+            height: 28px;
+            border-bottom: 1px solid #706b62;
+            margin-bottom: 4px;
+          }
+          @media print {
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <main class="sheet">${cards}</main>
+      </body>
+    </html>
+  `);
+  report.document.close();
+  report.focus();
+  report.print();
+}
+
+function renderParticipantCard(participant, settings) {
+  const animal = state.animals.find((item) => item.id === participant.animalId);
+  const totalDue = Number(participant.due || 0);
+  const totalPaid = Number(participant.paid || 0);
+  const paymentStatus = totalPaid >= totalDue ? "Lunas" : `Kurang ${money(totalDue - totalPaid)}`;
+  return `
+    <article class="card">
+      <div class="head">
+        <div>
+          <div class="brand">${escapeHtml(settings.institutionName || "QurbanOps")}</div>
+          <h1>Kartu Peserta Qurban</h1>
+          <div class="brand">${escapeHtml(settings.qurbanYear || "Idul Adha")}</div>
+        </div>
+        <div class="token">
+          <span>Token</span>
+          <strong>${escapeHtml(participant.token || "-")}</strong>
+        </div>
+      </div>
+      <dl>
+        <dt>Nama</dt><dd>${escapeHtml(participant.name || "-")}</dd>
+        <dt>Telepon</dt><dd>${escapeHtml(participant.phone || "-")}</dd>
+        <dt>Alamat</dt><dd>${escapeHtml(participant.address || "-")}</dd>
+        <dt>Paket</dt><dd>${escapeHtml(participant.packageType || "-")}</dd>
+        <dt>Hewan</dt><dd>${animal ? `${escapeHtml(animal.code)} - ${escapeHtml(animal.type)}` : "Belum dipilih"}</dd>
+        <dt>Iuran</dt><dd>${money(totalDue)}</dd>
+        <dt>Status</dt><dd>${escapeHtml(paymentStatus)}</dd>
+      </dl>
+      <div class="foot">
+        <div>
+          <strong>Catatan</strong><br />
+          Tunjukkan kartu ini saat konfirmasi panitia atau pengambilan bagian peserta.
+        </div>
+        <div class="signature">
+          <div class="line"></div>
+          Panitia
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function ensureModuleShape() {
   state.modules = state.modules || structuredClone(defaultState.modules);
   Object.entries(moduleConfigs).forEach(([key, config]) => {
@@ -1331,6 +1546,8 @@ function addUser() {
   state.modules.users.push({
     id: crypto.randomUUID(),
     name: data.name.trim(),
+    username: data.username.trim(),
+    password: data.password,
     role: data.role,
     phone: data.phone.trim(),
     status: data.status,
@@ -1472,21 +1689,37 @@ function printDistributionReport() {
 }
 
 function saveProfile() {
+  const account = getActiveAccount();
   state.modules.profile = {
     name: els.profileForm.elements.name.value.trim(),
     phone: els.profileForm.elements.phone.value.trim(),
     status: "Aktif",
   };
+  if (account && account.id && account.id !== "master") {
+    const user = state.modules.users.find((item) => item.id === account.id);
+    if (user) {
+      user.name = state.modules.profile.name;
+      user.phone = state.modules.profile.phone;
+      setActiveAccount(user);
+    }
+  }
   render();
 }
 
 function setActiveRole(role) {
+  const account = getActiveAccount();
+  if (account && normalizeRole(account.role) !== "admin" && role === "admin") return;
   activeRole = role;
   render();
 }
 
 function applyRoleAccess() {
-  els.roleButtons.forEach((button) => button.classList.toggle("active", button.dataset.roleSwitch === activeRole));
+  const account = getActiveAccount();
+  const canSwitchRoles = !account || normalizeRole(account.role) === "admin";
+  els.roleButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.roleSwitch === activeRole);
+    button.disabled = !canSwitchRoles && button.dataset.roleSwitch !== activeRole;
+  });
   document.querySelectorAll("[data-access]").forEach((item) => {
     const allowed = item.dataset.access.split(" ").includes(activeRole);
     item.hidden = !allowed;
@@ -1511,6 +1744,7 @@ function activateView(item) {
 document.querySelector("#openAnimalFormBtn").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openAnimalFormBtn2").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openParticipantFormBtn").addEventListener("click", () => openParticipantForm());
+document.querySelector("#printParticipantCardsBtn").addEventListener("click", () => printParticipantCards());
 document.querySelector("#saveAnimalBtn").addEventListener("click", saveAnimal);
 document.querySelector("#saveParticipantBtn").addEventListener("click", saveParticipant);
 document.querySelector("#saveDistributionBtn").addEventListener("click", saveDistribution);
@@ -1541,15 +1775,18 @@ document.querySelector("#resetDemoBtn").addEventListener("click", () => {
 els.adminLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   els.adminLoginError.textContent = "";
+  const username = els.adminUsernameInput.value;
   const password = els.adminPasswordInput.value;
 
   try {
-    await verifyAdminPassword(password);
+    const account = await verifyAdminPassword(password, username);
     setAdminPassword(password);
+    setActiveAccount(account);
+    activeRole = normalizeRole(account.role);
     unlockAdmin();
     render();
   } catch (error) {
-    els.adminLoginError.textContent = error.message || "Password admin salah.";
+    els.adminLoginError.textContent = error.message || "Akun atau password salah.";
   }
 });
 
@@ -1583,6 +1820,7 @@ document.addEventListener("click", (event) => {
   const deleteAnimalId = event.target.dataset.deleteAnimal;
   const editParticipantId = event.target.dataset.editParticipant;
   const deleteParticipantId = event.target.dataset.deleteParticipant;
+  const printParticipantId = event.target.dataset.printParticipant;
   const moduleAdd = event.target.dataset.moduleAdd;
   const moduleDelete = event.target.dataset.moduleDelete;
   const moduleIndex = event.target.dataset.moduleIndex;
@@ -1596,6 +1834,7 @@ document.addEventListener("click", (event) => {
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
   if (editParticipantId) openParticipantForm(editParticipantId);
+  if (printParticipantId) printParticipantCards([printParticipantId]);
   if (deleteParticipantId) deleteParticipant(deleteParticipantId);
   if (moduleAdd) addModuleRecord(moduleAdd);
   if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));

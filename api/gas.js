@@ -70,6 +70,8 @@ async function handleGet(request, response, gasUrl, adminToken) {
   if (action !== "publicAnimals") {
     url.searchParams.set("adminToken", adminToken);
     url.searchParams.set("adminPassword", getAdminPassword(request));
+    url.searchParams.set("loginUsername", getLoginUsername(request));
+    url.searchParams.set("loginPassword", getLoginPassword(request));
   }
 
   const gasResponse = await fetch(url.toString(), { method: "GET" });
@@ -95,7 +97,13 @@ async function handlePost(request, response, gasUrl, adminToken) {
   const gasResponse = await fetch(gasUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ ...request.body, adminToken, adminPassword: getAdminPassword(request) }),
+    body: JSON.stringify({
+      ...request.body,
+      adminToken,
+      adminPassword: getAdminPassword(request),
+      loginUsername: getLoginUsername(request),
+      loginPassword: getLoginPassword(request),
+    }),
   });
 
   const payload = await readJson(gasResponse);
@@ -126,5 +134,15 @@ function getResponseStatus(fetchResponse, payload) {
 
 function getAdminPassword(request) {
   const provided = request.headers["x-admin-password"];
+  return typeof provided === "string" ? provided : "";
+}
+
+function getLoginUsername(request) {
+  const provided = request.headers["x-login-username"];
+  return typeof provided === "string" ? provided : "";
+}
+
+function getLoginPassword(request) {
+  const provided = request.headers["x-login-password"];
   return typeof provided === "string" ? provided : "";
 }
