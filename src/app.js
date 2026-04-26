@@ -94,6 +94,30 @@ const defaultState = {
     minutes: [
       { date: "2026-04-10", agenda: "Rapat panitia awal", decision: "Finalisasi vendor hewan", pic: "Ketua panitia" },
     ],
+    appSettings: {
+      institutionName: "Masjid Al-Ikhlas",
+      qurbanYear: "1447 H / 2026",
+      address: "Jl. Melati, Kelurahan Sukamaju",
+      contact: "0812-9000-1111",
+      bagsPerCoupon: 1,
+      appStatus: "Persiapan",
+      notes: "Kupon hanya dapat dipakai satu kali saat pembagian daging.",
+    },
+    areas: [
+      { id: crypto.randomUUID(), name: "RT 01 Kampung Melati", coordinator: "Pak Ahmad", quota: 40, notes: "Prioritas warga sekitar masjid" },
+      { id: crypto.randomUUID(), name: "RT 02 Kampung Melati", coordinator: "Bu Aminah", quota: 35, notes: "Distribusi setelah zuhur" },
+    ],
+    users: [
+      { id: crypto.randomUUID(), name: "Admin Qurban", role: "Admin", phone: "0812-9000-1111", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Petugas Scan", role: "Panitia", phone: "0812-9000-2222", status: "Aktif" },
+    ],
+    coupons: [],
+    scanHistory: [],
+    profile: {
+      name: "Admin Qurban",
+      phone: "0812-9000-1111",
+      status: "Aktif",
+    },
   },
 };
 
@@ -138,6 +162,7 @@ defaultState.participants = [
 
 let state = loadState();
 let syncTimer = null;
+let activeRole = "admin";
 
 const els = {
   navItems: document.querySelectorAll(".nav-item"),
@@ -162,6 +187,26 @@ const els = {
   distributionTargetsTable: document.querySelector("#distributionTargetsTable"),
   distributionDestinationList: document.querySelector("#distributionDestinationList"),
   moduleSections: document.querySelector("#moduleSections"),
+  roleButtons: document.querySelectorAll("[data-role-switch]"),
+  activeRoleNote: document.querySelector("#activeRoleNote"),
+  opsStats: document.querySelector("#opsStats"),
+  recentScanTable: document.querySelector("#recentScanTable"),
+  couponStatusList: document.querySelector("#couponStatusList"),
+  settingsForm: document.querySelector("#settingsForm"),
+  areaForm: document.querySelector("#areaForm"),
+  areasTable: document.querySelector("#areasTable"),
+  userForm: document.querySelector("#userForm"),
+  usersTable: document.querySelector("#usersTable"),
+  couponGenerateForm: document.querySelector("#couponGenerateForm"),
+  couponAreaSelect: document.querySelector("#couponAreaSelect"),
+  couponsTable: document.querySelector("#couponsTable"),
+  scanForm: document.querySelector("#scanForm"),
+  scanOfficerSelect: document.querySelector("#scanOfficerSelect"),
+  scanResult: document.querySelector("#scanResult"),
+  scanHistoryTable: document.querySelector("#scanHistoryTable"),
+  reportStats: document.querySelector("#reportStats"),
+  reportsTable: document.querySelector("#reportsTable"),
+  profileForm: document.querySelector("#profileForm"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
@@ -256,6 +301,16 @@ const moduleConfigs = {
 
 function field(name, label, options = {}) {
   return { name, label, type: options.type || "text", options: options.options || [], step: options.step || "" };
+}
+
+function ensureOpsShape() {
+  ensureModuleShape();
+  const defaults = defaultState.modules;
+  state.modules.appSettings = { ...defaults.appSettings, ...(state.modules.appSettings || {}) };
+  state.modules.profile = { ...defaults.profile, ...(state.modules.profile || {}) };
+  ["areas", "users", "coupons", "scanHistory"].forEach((key) => {
+    if (!Array.isArray(state.modules[key])) state.modules[key] = structuredClone(defaults[key]);
+  });
 }
 
 function loadState() {
@@ -424,7 +479,17 @@ function participantsFor(animalId) {
 }
 
 function render() {
+  ensureOpsShape();
+  applyRoleAccess();
   renderSummary();
+  renderOpsDashboard();
+  renderSettingsForm();
+  renderAreasTable();
+  renderUsersTable();
+  renderCouponsView();
+  renderScanView();
+  renderReportsView();
+  renderProfileForm();
   renderAnimalBoard();
   renderAnimalsTable();
   renderParticipantsTable();
@@ -448,6 +513,175 @@ function renderSummary() {
   els.filledShares.textContent = `${filled}/${totalCapacity}`;
   els.paidAmount.textContent = money(paid);
   els.packageTotal.textContent = packages;
+}
+
+function getAreaName(areaId) {
+  const area = state.modules.areas.find((item) => item.id === areaId);
+  return area ? area.name : "Tanpa wilayah";
+}
+
+function couponStats() {
+  const coupons = state.modules.coupons;
+  const used = coupons.filter((coupon) => coupon.status === "Sudah diterima").length;
+  return {
+    total: coupons.length,
+    used,
+    remaining: Math.max(0, coupons.length - used),
+    general: coupons.filter((coupon) => coupon.category === "Umum").length,
+    participant: coupons.filter((coupon) => coupon.category === "Pengkurban").length,
+  };
+}
+
+function renderStatCards(target, stats) {
+  if (!target) return;
+  target.innerHTML = stats.map((stat) => `
+    <article class="metric">
+      <span>${escapeHtml(stat.label)}</span>
+      <strong>${escapeHtml(stat.value)}</strong>
+    </article>
+  `).join("");
+}
+
+function renderOpsDashboard() {
+  const stats = couponStats();
+  renderStatCards(els.opsStats, [
+    { label: "Total kupon", value: stats.total },
+    { label: "Sudah diterima", value: stats.used },
+    { label: "Belum diambil", value: stats.remaining },
+    { label: "Wilayah aktif", value: state.modules.areas.length },
+  ]);
+
+  if (els.recentScanTable) {
+    const rows = state.modules.scanHistory.slice(-5).reverse();
+    els.recentScanTable.innerHTML = rows.length ? rows.map((scan) => `
+      <tr>
+        <td>${escapeHtml(formatDateTime(scan.scannedAt))}</td>
+        <td><strong>${escapeHtml(scan.couponCode)}</strong></td>
+        <td>${escapeHtml(scan.recipientName || "-")}</td>
+        <td>${escapeHtml(scan.officer || "-")}</td>
+        <td><span class="badge ${scan.status === "Ditolak" ? "danger" : ""}">${escapeHtml(scan.status)}</span></td>
+      </tr>
+    `).join("") : '<tr><td colspan="5">Belum ada aktivitas scan.</td></tr>';
+  }
+
+  if (els.couponStatusList) {
+    els.couponStatusList.innerHTML = [
+      `Kupon umum: ${stats.general}`,
+      `Kupon pengkurban: ${stats.participant}`,
+      `Kupon belum diambil: ${stats.remaining}`,
+    ].map((item) => `<div class="validation-item good">${escapeHtml(item)}</div>`).join("");
+  }
+}
+
+function renderSettingsForm() {
+  if (!els.settingsForm) return;
+  const settings = state.modules.appSettings;
+  Object.entries(settings).forEach(([key, value]) => {
+    if (els.settingsForm.elements[key]) els.settingsForm.elements[key].value = value;
+  });
+}
+
+function renderAreasTable() {
+  if (!els.areasTable) return;
+  const coupons = state.modules.coupons;
+  els.areasTable.innerHTML = state.modules.areas.length ? state.modules.areas.map((area) => {
+    const count = coupons.filter((coupon) => coupon.areaId === area.id).length;
+    return `
+      <tr>
+        <td><strong>${escapeHtml(area.name)}</strong></td>
+        <td>${escapeHtml(area.coordinator || "-")}</td>
+        <td>${Number(area.quota || 0)}</td>
+        <td>${count}</td>
+        <td>${escapeHtml(area.notes || "-")}</td>
+        <td><button class="link-btn danger" data-delete-area="${escapeHtml(area.id)}" type="button">Hapus</button></td>
+      </tr>
+    `;
+  }).join("") : '<tr><td colspan="6">Belum ada wilayah distribusi.</td></tr>';
+}
+
+function renderUsersTable() {
+  if (!els.usersTable) return;
+  els.usersTable.innerHTML = state.modules.users.length ? state.modules.users.map((user) => `
+    <tr>
+      <td><strong>${escapeHtml(user.name)}</strong></td>
+      <td>${escapeHtml(user.role)}</td>
+      <td>${escapeHtml(user.phone || "-")}</td>
+      <td><span class="badge ${user.status === "Nonaktif" ? "danger" : ""}">${escapeHtml(user.status)}</span></td>
+      <td><button class="link-btn danger" data-delete-user="${escapeHtml(user.id)}" type="button">Hapus</button></td>
+    </tr>
+  `).join("") : '<tr><td colspan="5">Belum ada user.</td></tr>';
+}
+
+function renderCouponsView() {
+  if (els.couponAreaSelect) {
+    els.couponAreaSelect.innerHTML = state.modules.areas.map((area) => `<option value="${escapeHtml(area.id)}">${escapeHtml(area.name)}</option>`).join("");
+  }
+  if (!els.couponsTable) return;
+  els.couponsTable.innerHTML = state.modules.coupons.length ? state.modules.coupons.map((coupon) => `
+    <tr>
+      <td><strong>${escapeHtml(coupon.code)}</strong></td>
+      <td>${escapeHtml(coupon.recipientName || "Kupon umum")}</td>
+      <td>${escapeHtml(getAreaName(coupon.areaId))}</td>
+      <td>${escapeHtml(coupon.category)}</td>
+      <td><span class="badge ${coupon.status === "Sudah diterima" ? "" : "warn"}">${escapeHtml(coupon.status)}</span></td>
+      <td><button class="link-btn danger" data-delete-coupon="${escapeHtml(coupon.id)}" type="button">Hapus</button></td>
+    </tr>
+  `).join("") : '<tr><td colspan="6">Belum ada kupon.</td></tr>';
+}
+
+function renderScanView() {
+  if (!els.scanOfficerSelect) return;
+  const users = state.modules.users.filter((user) => user.status === "Aktif");
+  els.scanOfficerSelect.innerHTML = users.map((user) => `<option value="${escapeHtml(user.name)}">${escapeHtml(user.name)} - ${escapeHtml(user.role)}</option>`).join("");
+}
+
+function renderScanHistory() {
+  if (!els.scanHistoryTable) return;
+  els.scanHistoryTable.innerHTML = state.modules.scanHistory.length ? state.modules.scanHistory.slice().reverse().map((scan) => `
+    <tr>
+      <td>${escapeHtml(formatDateTime(scan.scannedAt))}</td>
+      <td><strong>${escapeHtml(scan.couponCode)}</strong></td>
+      <td>${escapeHtml(scan.recipientName || "-")}</td>
+      <td>${escapeHtml(scan.areaName || "-")}</td>
+      <td>${escapeHtml(scan.officer || "-")}</td>
+      <td><span class="badge ${scan.status === "Ditolak" ? "danger" : ""}">${escapeHtml(scan.status)}</span></td>
+    </tr>
+  `).join("") : '<tr><td colspan="6">Belum ada riwayat scan.</td></tr>';
+}
+
+function renderReportsView() {
+  const stats = couponStats();
+  renderStatCards(els.reportStats, [
+    { label: "Total kupon", value: stats.total },
+    { label: "Terverifikasi", value: stats.used },
+    { label: "Sisa kupon", value: stats.remaining },
+    { label: "Paket daging", value: els.packageTotal ? els.packageTotal.textContent : 0 },
+  ]);
+
+  if (els.reportsTable) {
+    els.reportsTable.innerHTML = state.modules.areas.length ? state.modules.areas.map((area) => {
+      const coupons = state.modules.coupons.filter((coupon) => coupon.areaId === area.id);
+      const used = coupons.filter((coupon) => coupon.status === "Sudah diterima").length;
+      return `
+        <tr>
+          <td><strong>${escapeHtml(area.name)}</strong></td>
+          <td>${Number(area.quota || 0)}</td>
+          <td>${coupons.length}</td>
+          <td>${used}</td>
+          <td>${Math.max(0, coupons.length - used)}</td>
+        </tr>
+      `;
+    }).join("") : '<tr><td colspan="5">Belum ada wilayah untuk laporan.</td></tr>';
+  }
+  renderScanHistory();
+}
+
+function renderProfileForm() {
+  if (!els.profileForm) return;
+  els.profileForm.elements.name.value = state.modules.profile.name || "";
+  els.profileForm.elements.phone.value = state.modules.profile.phone || "";
+  els.profileForm.elements.role.value = activeRole === "admin" ? "Admin" : "Panitia";
+  els.profileForm.elements.status.value = state.modules.profile.status || "Aktif";
 }
 
 function renderAnimalBoard() {
@@ -606,6 +840,17 @@ function isAnimalHealthy(animal) {
 
 function formatSchedule(value) {
   if (!value) return "Belum dijadwalkan";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
@@ -1052,6 +1297,217 @@ function suggestDue(animalId) {
   return Math.ceil((Number(animal.price) + Number(animal.cost)) / shareLimit(animal.type));
 }
 
+function saveSettings() {
+  const data = Object.fromEntries(new FormData(els.settingsForm));
+  state.modules.appSettings = {
+    institutionName: data.institutionName.trim(),
+    qurbanYear: data.qurbanYear.trim(),
+    address: data.address.trim(),
+    contact: data.contact.trim(),
+    bagsPerCoupon: Number(data.bagsPerCoupon || 1),
+    appStatus: data.appStatus,
+    notes: data.notes.trim(),
+  };
+  render();
+}
+
+function addArea() {
+  if (!els.areaForm.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(els.areaForm));
+  state.modules.areas.push({
+    id: crypto.randomUUID(),
+    name: data.name.trim(),
+    coordinator: data.coordinator.trim(),
+    quota: Number(data.quota || 0),
+    notes: data.notes.trim(),
+  });
+  els.areaForm.reset();
+  render();
+}
+
+function addUser() {
+  if (!els.userForm.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(els.userForm));
+  state.modules.users.push({
+    id: crypto.randomUUID(),
+    name: data.name.trim(),
+    role: data.role,
+    phone: data.phone.trim(),
+    status: data.status,
+  });
+  els.userForm.reset();
+  render();
+}
+
+function nextCouponCode() {
+  const nextNumber = state.modules.coupons.reduce((max, coupon) => {
+    const match = String(coupon.code || "").match(/KPN-(\d+)/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `KPN-${String(nextNumber).padStart(4, "0")}`;
+}
+
+function createCoupon({ recipientName = "", areaId = "", category = "Umum", source = "manual" }) {
+  return {
+    id: crypto.randomUUID(),
+    code: nextCouponCode(),
+    recipientName,
+    areaId,
+    category,
+    source,
+    status: "Belum diambil",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function generateCoupons() {
+  if (!els.couponGenerateForm.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(els.couponGenerateForm));
+  const count = Math.max(1, Number(data.count || 1));
+  for (let index = 0; index < count; index += 1) {
+    state.modules.coupons.push(createCoupon({
+      recipientName: data.recipientName.trim(),
+      areaId: data.areaId,
+      category: data.category,
+      source: "generated",
+    }));
+  }
+  render();
+}
+
+function addGeneralCoupon() {
+  const data = Object.fromEntries(new FormData(els.couponGenerateForm));
+  state.modules.coupons.push(createCoupon({
+    recipientName: data.recipientName.trim(),
+    areaId: data.areaId,
+    category: "Umum",
+    source: "general",
+  }));
+  render();
+}
+
+function importParticipantCoupons() {
+  const defaultArea = state.modules.areas[0] ? state.modules.areas[0].id : "";
+  const existingNames = new Set(state.modules.coupons.map((coupon) => `${coupon.category}:${coupon.recipientName}`));
+  state.participants.forEach((participant) => {
+    const key = `Pengkurban:${participant.name}`;
+    if (existingNames.has(key)) return;
+    state.modules.coupons.push(createCoupon({
+      recipientName: participant.name,
+      areaId: defaultArea,
+      category: "Pengkurban",
+      source: "participant",
+    }));
+    existingNames.add(key);
+  });
+  render();
+}
+
+function scanCoupon() {
+  if (!els.scanForm.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(els.scanForm));
+  const code = data.couponCode.trim().toUpperCase();
+  const coupon = state.modules.coupons.find((item) => item.code.toUpperCase() === code);
+  const scan = {
+    id: crypto.randomUUID(),
+    couponCode: code,
+    recipientName: coupon ? coupon.recipientName || "Kupon umum" : "-",
+    areaName: coupon ? getAreaName(coupon.areaId) : "-",
+    officer: data.officer,
+    scannedAt: new Date().toISOString(),
+    status: "Terverifikasi",
+  };
+
+  if (!coupon) {
+    scan.status = "Ditolak";
+    els.scanResult.className = "scan-result danger";
+    els.scanResult.textContent = "Kupon tidak ditemukan.";
+  } else if (coupon.status === "Sudah diterima") {
+    scan.status = "Ditolak";
+    els.scanResult.className = "scan-result danger";
+    els.scanResult.textContent = `${coupon.code} sudah pernah diterima.`;
+  } else {
+    coupon.status = "Sudah diterima";
+    coupon.scannedAt = scan.scannedAt;
+    coupon.officer = data.officer;
+    els.scanResult.className = "scan-result good";
+    els.scanResult.textContent = `${coupon.code} valid untuk ${coupon.recipientName || "kupon umum"}.`;
+  }
+
+  state.modules.scanHistory.push(scan);
+  els.scanForm.reset();
+  render();
+}
+
+function downloadCouponsReport() {
+  const rows = [["Kode", "Penerima", "Wilayah", "Kategori", "Status", "Petugas", "Waktu Scan"]];
+  state.modules.coupons.forEach((coupon) => {
+    rows.push([
+      coupon.code,
+      coupon.recipientName || "Kupon umum",
+      getAreaName(coupon.areaId),
+      coupon.category,
+      coupon.status,
+      coupon.officer || "",
+      coupon.scannedAt ? formatDateTime(coupon.scannedAt) : "",
+    ]);
+  });
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "laporan-kupon-qurban.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function printDistributionReport() {
+  const settings = state.modules.appSettings;
+  const lines = state.modules.areas.map((area) => {
+    const coupons = state.modules.coupons.filter((coupon) => coupon.areaId === area.id);
+    const used = coupons.filter((coupon) => coupon.status === "Sudah diterima").length;
+    return `${area.name}: ${used}/${coupons.length} kupon diterima`;
+  });
+  printModuleReport(`Laporan Pembagian Daging - ${settings.institutionName}`, lines.join("\n"));
+}
+
+function saveProfile() {
+  state.modules.profile = {
+    name: els.profileForm.elements.name.value.trim(),
+    phone: els.profileForm.elements.phone.value.trim(),
+    status: "Aktif",
+  };
+  render();
+}
+
+function setActiveRole(role) {
+  activeRole = role;
+  render();
+}
+
+function applyRoleAccess() {
+  els.roleButtons.forEach((button) => button.classList.toggle("active", button.dataset.roleSwitch === activeRole));
+  document.querySelectorAll("[data-access]").forEach((item) => {
+    const allowed = item.dataset.access.split(" ").includes(activeRole);
+    item.hidden = !allowed;
+  });
+  if (els.activeRoleNote) {
+    els.activeRoleNote.textContent = `Mode aktif: ${activeRole === "admin" ? "Admin" : "Panitia"}. Data tersimpan otomatis di browser perangkat ini.`;
+  }
+  const activeNav = [...els.navItems].find((item) => item.classList.contains("active") && !item.hidden);
+  if (activeNav) return;
+  const firstAllowed = [...els.navItems].find((item) => !item.hidden);
+  if (firstAllowed) activateView(firstAllowed);
+}
+
+function activateView(item) {
+  els.navItems.forEach((nav) => nav.classList.remove("active"));
+  item.classList.add("active");
+  els.views.forEach((view) => view.classList.remove("active"));
+  const view = document.querySelector(`#${item.dataset.view}View`);
+  if (view) view.classList.add("active");
+}
+
 document.querySelector("#openAnimalFormBtn").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openAnimalFormBtn2").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openParticipantFormBtn").addEventListener("click", () => openParticipantForm());
@@ -1064,6 +1520,20 @@ document.querySelector("#saveModulesBtn").addEventListener("click", saveModules)
 document.querySelector("#printSavingsBtn").addEventListener("click", () => printModuleReport("Laporan Tabungan Kurban", state.modules && state.modules.savings));
 document.querySelector("#printTransactionsBtn").addEventListener("click", () => printModuleReport("Laporan Transaksi Kurban", state.modules && state.modules.transactions));
 document.querySelector("#printMeatYieldBtn").addEventListener("click", () => printModuleReport("Laporan Perolehan Daging Kurban", state.modules && state.modules.meatYield));
+document.querySelector("#saveSettingsBtn").addEventListener("click", saveSettings);
+document.querySelector("#addAreaBtn").addEventListener("click", addArea);
+document.querySelector("#addUserBtn").addEventListener("click", addUser);
+document.querySelector("#generateCouponsBtn").addEventListener("click", generateCoupons);
+document.querySelector("#importParticipantCouponsBtn").addEventListener("click", importParticipantCoupons);
+document.querySelector("#addGeneralCouponBtn").addEventListener("click", addGeneralCoupon);
+document.querySelector("#scanCouponBtn").addEventListener("click", scanCoupon);
+document.querySelector("#clearScanResultBtn").addEventListener("click", () => {
+  els.scanResult.textContent = "";
+  els.scanResult.className = "scan-result";
+});
+document.querySelector("#downloadCouponsReportBtn").addEventListener("click", downloadCouponsReport);
+document.querySelector("#printDistributionReportBtn").addEventListener("click", printDistributionReport);
+document.querySelector("#saveProfileBtn").addEventListener("click", saveProfile);
 document.querySelector("#resetDemoBtn").addEventListener("click", () => {
   state = structuredClone(defaultState);
   render();
@@ -1098,13 +1568,13 @@ document.querySelector("#animalPhotoFile").addEventListener("change", async (eve
 els.participantForm.elements.animalId.addEventListener("change", (event) => {
   els.participantForm.elements.due.value = suggestDue(event.target.value);
 });
+els.roleButtons.forEach((button) => {
+  button.addEventListener("click", () => setActiveRole(button.dataset.roleSwitch));
+});
 
 els.navItems.forEach((item) => {
   item.addEventListener("click", () => {
-    els.navItems.forEach((nav) => nav.classList.remove("active"));
-    item.classList.add("active");
-    els.views.forEach((view) => view.classList.remove("active"));
-    document.querySelector(`#${item.dataset.view}View`).classList.add("active");
+    activateView(item);
   });
 });
 
@@ -1119,6 +1589,9 @@ document.addEventListener("click", (event) => {
   const deleteDistributionTargetIndex = event.target.dataset.deleteDistributionTarget;
   const deleteDistributionRecipientTarget = event.target.dataset.deleteDistributionRecipient;
   const deleteDistributionRecipientIndex = event.target.dataset.recipientIndex;
+  const deleteAreaId = event.target.dataset.deleteArea;
+  const deleteUserId = event.target.dataset.deleteUser;
+  const deleteCouponId = event.target.dataset.deleteCoupon;
 
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
@@ -1128,6 +1601,21 @@ document.addEventListener("click", (event) => {
   if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));
   if (deleteDistributionTargetIndex !== undefined) deleteDistributionTarget(Number(deleteDistributionTargetIndex));
   if (deleteDistributionRecipientTarget !== undefined) deleteDistributionRecipient(Number(deleteDistributionRecipientTarget), Number(deleteDistributionRecipientIndex));
+  if (deleteAreaId) {
+    state.modules.areas = state.modules.areas.filter((area) => area.id !== deleteAreaId);
+    state.modules.coupons.forEach((coupon) => {
+      if (coupon.areaId === deleteAreaId) coupon.areaId = "";
+    });
+    render();
+  }
+  if (deleteUserId) {
+    state.modules.users = state.modules.users.filter((user) => user.id !== deleteUserId);
+    render();
+  }
+  if (deleteCouponId) {
+    state.modules.coupons = state.modules.coupons.filter((coupon) => coupon.id !== deleteCouponId);
+    render();
+  }
 });
 
 async function bootstrap() {

@@ -33,16 +33,28 @@
       </div>
 
       <nav class="nav">
-        <button class="nav-item active" data-view="overview" type="button">Ringkasan</button>
-        <button class="nav-item" data-view="animals" type="button">Hewan</button>
-        <button class="nav-item" data-view="participants" type="button">Peserta</button>
-        <button class="nav-item" data-view="distribution" type="button">Distribusi</button>
-        <button class="nav-item" data-view="modules" type="button">Modul Teknis</button>
+        <div class="role-switch" aria-label="Mode pengguna">
+          <button class="role-btn active" data-role-switch="admin" type="button">Admin</button>
+          <button class="role-btn" data-role-switch="panitia" type="button">Panitia</button>
+        </div>
+        <button class="nav-item active" data-view="overview" data-access="admin panitia" type="button">Dashboard</button>
+        <button class="nav-item" data-view="settings" data-access="admin" type="button">Pengaturan Aplikasi</button>
+        <button class="nav-item" data-view="areas" data-access="admin" type="button">Data Wilayah</button>
+        <button class="nav-item" data-view="users" data-access="admin" type="button">Data User</button>
+        <button class="nav-item" data-view="coupons" data-access="admin" type="button">Data Kupon</button>
+        <button class="nav-item" data-view="scan" data-access="admin panitia" type="button">Scan Kupon</button>
+        <button class="nav-item" data-view="scanHistory" data-access="admin panitia" type="button">Riwayat Scan</button>
+        <button class="nav-item" data-view="reports" data-access="admin" type="button">Rekap & Laporan</button>
+        <button class="nav-item" data-view="profile" data-access="admin panitia" type="button">Profil Akun</button>
+        <button class="nav-item" data-view="animals" data-access="admin" type="button">Hewan</button>
+        <button class="nav-item" data-view="participants" data-access="admin" type="button">Peserta</button>
+        <button class="nav-item" data-view="distribution" data-access="admin" type="button">Distribusi</button>
+        <button class="nav-item" data-view="modules" data-access="admin" type="button">Modul Teknis</button>
         <a class="nav-link" href="index.html">Website hewan</a>
       </nav>
 
       <div class="sidebar-note">
-        <span>Data tersimpan otomatis di browser perangkat ini.</span>
+        <span id="activeRoleNote">Mode aktif: Admin. Data tersimpan otomatis di browser perangkat ini.</span>
       </div>
     </aside>
 
@@ -82,8 +94,8 @@
           <div class="view-panel active" id="overviewView">
             <div class="section-head">
               <div>
-                <h2>Status pelaksanaan</h2>
-                <p>Daftar hewan, kuota peserta, dan kesiapan sembelih.</p>
+                <h2>Dashboard distribusi daging</h2>
+                <p>Statistik kupon, wilayah, pembagian, dan aktivitas scan terakhir.</p>
               </div>
               <select id="statusFilter" aria-label="Filter status">
                 <option value="all">Semua status</option>
@@ -93,7 +105,267 @@
                 <option value="distributed">Distribusi</option>
               </select>
             </div>
+            <div class="ops-grid" id="opsStats"></div>
+            <div class="dashboard-split">
+              <section>
+                <div class="module-head">
+                  <div>
+                    <h3>Aktivitas scan terakhir</h3>
+                    <p>Data penerimaan daging dari petugas lapangan.</p>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Waktu</th>
+                        <th>Kupon</th>
+                        <th>Penerima</th>
+                        <th>Petugas</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recentScanTable"></tbody>
+                  </table>
+                </div>
+              </section>
+              <section>
+                <div class="module-head">
+                  <div>
+                    <h3>Status kupon</h3>
+                    <p>Ringkasan kupon yang sudah dan belum diambil.</p>
+                  </div>
+                </div>
+                <div id="couponStatusList" class="validation-list"></div>
+              </section>
+            </div>
             <div id="animalBoard" class="animal-board"></div>
+          </div>
+
+          <div class="view-panel" id="settingsView">
+            <div class="section-head">
+              <div>
+                <h2>Pengaturan aplikasi</h2>
+                <p>Kelola identitas masjid/lembaga, tahun kurban, dan aturan umum pembagian.</p>
+              </div>
+              <button class="primary-btn" id="saveSettingsBtn" type="button">Simpan pengaturan</button>
+            </div>
+            <form class="settings-grid" id="settingsForm">
+              <label>Nama masjid/lembaga <input name="institutionName" required /></label>
+              <label>Tahun kurban <input name="qurbanYear" required /></label>
+              <label>Alamat <input name="address" /></label>
+              <label>Kontak panitia <input name="contact" /></label>
+              <label>Jumlah kantung per kupon <input name="bagsPerCoupon" min="1" type="number" /></label>
+              <label>Status aplikasi
+                <select name="appStatus">
+                  <option value="Persiapan">Persiapan</option>
+                  <option value="Pembagian aktif">Pembagian aktif</option>
+                  <option value="Selesai">Selesai</option>
+                </select>
+              </label>
+              <label class="wide">Catatan umum <textarea name="notes" rows="4"></textarea></label>
+            </form>
+          </div>
+
+          <div class="view-panel" id="areasView">
+            <div class="section-head">
+              <div>
+                <h2>Data wilayah</h2>
+                <p>Tambah dan kelola wilayah distribusi untuk penerima kupon.</p>
+              </div>
+              <button class="primary-btn" id="addAreaBtn" type="button">Tambah wilayah</button>
+            </div>
+            <form class="module-entry-form area-form" id="areaForm">
+              <label>Nama wilayah <input name="name" required placeholder="RT 01 / Dusun Melati" /></label>
+              <label>Koordinator <input name="coordinator" placeholder="Nama PIC" /></label>
+              <label>Target kupon <input name="quota" min="0" type="number" /></label>
+              <label>Catatan <input name="notes" /></label>
+            </form>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Wilayah</th>
+                    <th>Koordinator</th>
+                    <th>Target</th>
+                    <th>Kupon</th>
+                    <th>Catatan</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="areasTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="usersView">
+            <div class="section-head">
+              <div>
+                <h2>Data user</h2>
+                <p>Kelola akun admin dan panitia yang bertugas melakukan scan.</p>
+              </div>
+              <button class="primary-btn" id="addUserBtn" type="button">Tambah user</button>
+            </div>
+            <form class="module-entry-form user-form" id="userForm">
+              <label>Nama <input name="name" required /></label>
+              <label>Role
+                <select name="role">
+                  <option value="Admin">Admin</option>
+                  <option value="Panitia">Panitia</option>
+                </select>
+              </label>
+              <label>Telepon <input name="phone" /></label>
+              <label>Status
+                <select name="status">
+                  <option value="Aktif">Aktif</option>
+                  <option value="Nonaktif">Nonaktif</option>
+                </select>
+              </label>
+            </form>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>Role</th>
+                    <th>Telepon</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="couponsView">
+            <div class="section-head">
+              <div>
+                <h2>Data kupon</h2>
+                <p>Generate kupon otomatis, import kupon pengkurban, dan buat kupon umum tanpa nama.</p>
+              </div>
+              <div class="topbar-actions">
+                <button class="ghost-btn" id="generateCouponsBtn" type="button">Generate otomatis</button>
+                <button class="ghost-btn" id="importParticipantCouponsBtn" type="button">Import pengkurban</button>
+                <button class="primary-btn" id="addGeneralCouponBtn" type="button">Kupon umum</button>
+              </div>
+            </div>
+            <form class="coupon-tools" id="couponGenerateForm">
+              <label>Wilayah
+                <select name="areaId" id="couponAreaSelect"></select>
+              </label>
+              <label>Jumlah kupon <input name="count" min="1" type="number" value="10" /></label>
+              <label>Kategori
+                <select name="category">
+                  <option value="Umum">Umum</option>
+                  <option value="Mustahik">Mustahik</option>
+                  <option value="Pengkurban">Pengkurban</option>
+                  <option value="Panitia">Panitia</option>
+                </select>
+              </label>
+              <label>Nama penerima <input name="recipientName" placeholder="Opsional untuk kupon umum" /></label>
+            </form>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kode</th>
+                    <th>Penerima</th>
+                    <th>Wilayah</th>
+                    <th>Kategori</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="couponsTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="scanView">
+            <div class="section-head">
+              <div>
+                <h2>Scan kupon</h2>
+                <p>Verifikasi kupon saat warga mengambil daging.</p>
+              </div>
+              <button class="primary-btn" id="scanCouponBtn" type="button">Verifikasi kupon</button>
+            </div>
+            <form class="scan-panel" id="scanForm">
+              <label>Kode kupon <input name="couponCode" required placeholder="KPN-0001" /></label>
+              <label>Nama petugas
+                <select name="officer" id="scanOfficerSelect"></select>
+              </label>
+            </form>
+            <div class="scan-result" id="scanResult" role="status"></div>
+          </div>
+
+          <div class="view-panel" id="scanHistoryView">
+            <div class="section-head">
+              <div>
+                <h2>Riwayat scan</h2>
+                <p>Pantau petugas scan dan penerima yang sudah mengambil daging.</p>
+              </div>
+              <button class="ghost-btn" id="clearScanResultBtn" type="button">Bersihkan notifikasi</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>Kode</th>
+                    <th>Penerima</th>
+                    <th>Wilayah</th>
+                    <th>Petugas</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="scanHistoryTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="reportsView">
+            <div class="section-head">
+              <div>
+                <h2>Rekapitulasi & laporan</h2>
+                <p>Unduh atau cetak laporan pembagian daging.</p>
+              </div>
+              <div class="topbar-actions">
+                <button class="ghost-btn" id="downloadCouponsReportBtn" type="button">Unduh CSV</button>
+                <button class="primary-btn" id="printDistributionReportBtn" type="button">Cetak laporan</button>
+              </div>
+            </div>
+            <div class="ops-grid" id="reportStats"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Wilayah</th>
+                    <th>Target</th>
+                    <th>Kupon</th>
+                    <th>Sudah diterima</th>
+                    <th>Sisa</th>
+                  </tr>
+                </thead>
+                <tbody id="reportsTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="profileView">
+            <div class="section-head">
+              <div>
+                <h2>Profil akun</h2>
+                <p>Informasi akun aktif untuk operasional aplikasi.</p>
+              </div>
+              <button class="primary-btn" id="saveProfileBtn" type="button">Simpan profil</button>
+            </div>
+            <form class="settings-grid" id="profileForm">
+              <label>Nama akun <input name="name" required /></label>
+              <label>Telepon <input name="phone" /></label>
+              <label>Role aktif <input name="role" readonly /></label>
+              <label>Status <input name="status" readonly /></label>
+            </form>
           </div>
 
           <div class="view-panel" id="animalsView">

@@ -83,6 +83,30 @@ button {
   gap: 8px;
 }
 
+.role-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.role-btn {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(249, 243, 232, 0.74);
+  font-weight: 800;
+}
+
+.role-btn.active {
+  background: #fffdf8;
+  color: #153d34;
+}
+
 .nav-item,
 .nav-link {
   width: 100%;
@@ -204,6 +228,13 @@ p {
   gap: 12px;
 }
 
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
 .metric {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -268,6 +299,20 @@ textarea {
 .animal-board {
   display: grid;
   gap: 12px;
+  margin-top: 18px;
+}
+
+.dashboard-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, .8fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.dashboard-split section {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
 }
 
 .animal-card {
@@ -401,6 +446,49 @@ th {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.settings-grid,
+.coupon-tools,
+.scan-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.coupon-tools {
+  grid-template-columns: 1.2fr .7fr .8fr 1.2fr;
+  margin-bottom: 16px;
+}
+
+.scan-panel {
+  grid-template-columns: 1.2fr 1fr;
+  max-width: 760px;
+}
+
+.scan-result {
+  min-height: 48px;
+  margin-top: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.scan-result.good {
+  border-style: solid;
+  background: var(--soft);
+  color: var(--accent-strong);
+}
+
+.scan-result.danger {
+  border-style: solid;
+  background: #fae3df;
+  color: var(--danger);
 }
 
 .module-sections {
@@ -639,11 +727,16 @@ dialog::backdrop {
   }
 
   .summary-grid,
+  .ops-grid,
+  .dashboard-split,
   .workspace,
   .distribution-grid,
   .distribution-target-form,
   .distribution-recipient-form,
-  .module-entry-form {
+  .module-entry-form,
+  .settings-grid,
+  .coupon-tools,
+  .scan-panel {
     grid-template-columns: 1fr;
   }
 }
