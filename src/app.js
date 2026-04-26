@@ -53,6 +53,16 @@ const defaultState = {
       { destination: "Panitia lapangan", category: "Panitia", bags: 12, pic: "Koordinator", status: "Cadangan operasional" },
     ],
   },
+  modules: {
+    savers: "Budi Santoso | 0812-7000-1000 | RT 02 | Patungan sapi | 1500000\nNur Aisyah | 0812-7000-2000 | RT 04 | Kambing individu | 900000",
+    savings: "2026-01-12 | Budi Santoso | 500000 | Transfer | Setoran awal\n2026-02-12 | Nur Aisyah | 300000 | Tunai | Setoran bulanan",
+    committee: "Ust. Rahman | Ketua | 0812-9000-1111 | Koordinasi umum\nIbu Sari | Bendahara | 0812-9000-2222 | Keuangan dan laporan",
+    periods: "Idul Adha 1447 H | 2026-01-01 | 2026-05-31 | Aktif",
+    transactions: "2026-01-12 | Pemasukan | Tabungan | 500000 | Setoran Budi\n2026-01-20 | Pengeluaran | Operasional | 250000 | Transport vendor",
+    meatYield: "SP-01 | 238 kg | 180 kantung | Sapi selesai diproses\nKG-01 | 22 kg | 18 kantung | Menunggu sembelih",
+    recipients: "RT 01 Kampung Melati | Warga | 40 | Siap dibagikan\nMasjid Al-Ikhlas | Mustahik | 35 | Terjadwal",
+    minutes: "2026-04-10 | Rapat panitia awal | Finalisasi vendor hewan | Ketua panitia",
+  },
 };
 
 defaultState.participants = [
@@ -114,6 +124,7 @@ const els = {
   animalForm: document.querySelector("#animalForm"),
   participantForm: document.querySelector("#participantForm"),
   distributionForm: document.querySelector("#distributionForm"),
+  modulesForm: document.querySelector("#modulesForm"),
   distributionTargetsPreview: document.querySelector("#distributionTargetsPreview"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
@@ -176,6 +187,7 @@ async function loadRemoteState() {
       animals: Array.isArray(data.animals) ? data.animals : [],
       participants: Array.isArray(data.participants) ? data.participants : [],
       distribution: data.distribution || structuredClone(defaultState.distribution),
+      modules: data.modules || structuredClone(defaultState.modules),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
@@ -225,6 +237,7 @@ async function verifyAdminPassword(password) {
     animals: Array.isArray(data.animals) ? data.animals : [],
     participants: Array.isArray(data.participants) ? data.participants : [],
     distribution: data.distribution || structuredClone(defaultState.distribution),
+    modules: data.modules || structuredClone(defaultState.modules),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return true;
@@ -290,6 +303,7 @@ function render() {
   renderAnimalsTable();
   renderParticipantsTable();
   renderDistributionForm();
+  renderModulesForm();
   renderValidation();
   fillAnimalOptions();
   saveState();
@@ -675,6 +689,54 @@ function renderDistributionTargetsPreview() {
   `).join("");
 }
 
+function renderModulesForm() {
+  if (!els.modulesForm) return;
+  const modules = state.modules || {};
+  Object.entries(modules).forEach(([key, value]) => {
+    if (els.modulesForm.elements[key]) els.modulesForm.elements[key].value = value;
+  });
+}
+
+function saveModules() {
+  const data = Object.fromEntries(new FormData(els.modulesForm));
+  state.modules = {
+    savers: data.savers || "",
+    savings: data.savings || "",
+    committee: data.committee || "",
+    periods: data.periods || "",
+    transactions: data.transactions || "",
+    meatYield: data.meatYield || "",
+    recipients: data.recipients || "",
+    minutes: data.minutes || "",
+  };
+  render();
+}
+
+function printModuleReport(title, content) {
+  const report = window.open("", "_blank", "width=900,height=700");
+  if (!report) return;
+  report.document.write(`
+    <!doctype html>
+    <html lang="id">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 32px; color: #1b1a17; }
+          h1 { margin: 0 0 18px; }
+          pre { white-space: pre-wrap; border: 1px solid #ddd; padding: 18px; border-radius: 8px; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <pre>${escapeHtml(content || "Belum ada data.")}</pre>
+      </body>
+    </html>
+  `);
+  report.document.close();
+  report.print();
+}
+
 function deleteAnimal(animalId) {
   if (participantsFor(animalId).length) {
     alert("Hewan masih punya peserta. Pindahkan atau hapus peserta dulu.");
@@ -714,6 +776,10 @@ document.querySelector("#openParticipantFormBtn").addEventListener("click", () =
 document.querySelector("#saveAnimalBtn").addEventListener("click", saveAnimal);
 document.querySelector("#saveParticipantBtn").addEventListener("click", saveParticipant);
 document.querySelector("#saveDistributionBtn").addEventListener("click", saveDistribution);
+document.querySelector("#saveModulesBtn").addEventListener("click", saveModules);
+document.querySelector("#printSavingsBtn").addEventListener("click", () => printModuleReport("Laporan Tabungan Kurban", state.modules && state.modules.savings));
+document.querySelector("#printTransactionsBtn").addEventListener("click", () => printModuleReport("Laporan Transaksi Kurban", state.modules && state.modules.transactions));
+document.querySelector("#printMeatYieldBtn").addEventListener("click", () => printModuleReport("Laporan Perolehan Daging Kurban", state.modules && state.modules.meatYield));
 document.querySelector("#resetDemoBtn").addEventListener("click", () => {
   state = structuredClone(defaultState);
   render();

@@ -403,6 +403,16 @@ th {
   gap: 14px;
 }
 
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.module-grid textarea {
+  min-height: 150px;
+}
+
 .distribution-preview {
   margin: 18px 22px 22px;
   border-top: 1px solid var(--line);
@@ -577,7 +587,8 @@ dialog::backdrop {
 
   .summary-grid,
   .workspace,
-  .distribution-grid {
+  .distribution-grid,
+  .module-grid {
     grid-template-columns: 1fr;
   }
 }
