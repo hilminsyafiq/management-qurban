@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>List Hewan Qurban</title>
+    <link rel="stylesheet" href="styles/public.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="QurbanOps admin">
+        <img src="assets/qurban-mark.svg" alt="" />
+        <span>QurbanOps</span>
+      </a>
+      <a class="admin-link" href="index.html">Admin</a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Idul Adha 1447 H</p>
+          <h1>Qurban yang tertata, amanah yang sampai.</h1>
+          <p>Pilih hewan qurban, pantau sisa kuota, dan ikuti jadwal penyembelihan dari data panitia.</p>
+          <div class="hero-actions">
+            <a class="primary-cta" href="#listHewan">Lihat hewan</a>
+            <a class="secondary-cta" href="index.html">Admin panitia</a>
+          </div>
+          <div class="eid-notes" aria-label="Nilai pelaksanaan qurban">
+            <span>Takbir Idul Adha</span>
+            <span>Penyembelihan terjadwal</span>
+            <span>Distribusi mustahik</span>
+          </div>
+        </div>
+        <div class="hero-panel" aria-label="Ringkasan hewan qurban">
+          <div>
+            <span>Total hewan</span>
+            <strong id="publicTotalAnimals">0</strong>
+          </div>
+          <div>
+            <span>Kuota tersedia</span>
+            <strong id="publicAvailableShares">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="catalog-head" id="listHewan">
+        <div>
+          <p class="eyebrow">Profil hewan qurban</p>
+          <h2>Foto, bobot, biaya, dan kuota dalam satu tampilan.</h2>
+        </div>
+        <div class="toolbar" aria-label="Filter list hewan">
+          <label>
+            Cari hewan
+            <input id="searchInput" type="search" placeholder="Kode atau jenis hewan" />
+          </label>
+          <label>
+            Jenis
+            <select id="typeFilter">
+              <option value="all">Semua jenis</option>
+              <option value="Sapi">Sapi</option>
+              <option value="Kambing">Kambing</option>
+              <option value="Domba">Domba</option>
+            </select>
+          </label>
+          <label>
+            Status kuota
+            <select id="quotaFilter">
+              <option value="all">Semua</option>
+              <option value="available">Tersedia</option>
+              <option value="full">Penuh</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="animal-list" id="publicAnimalList" aria-live="polite"></section>
+    </main>
+
+    <script src="src/config.js"></script>
+    <script src="src/public-animals.js"></script>
+  </body>
+</html>
