@@ -52,6 +52,11 @@ const publicEls = {
   search: document.querySelector("#searchInput"),
   type: document.querySelector("#typeFilter"),
   quota: document.querySelector("#quotaFilter"),
+  packageGrid: document.querySelector("#packageGrid"),
+  gallery: document.querySelector("#animalGallery"),
+  bookingForm: document.querySelector("#bookingForm"),
+  bookingSelect: document.querySelector("#bookingAnimalSelect"),
+  bookingResult: document.querySelector("#bookingResult"),
 };
 
 function money(value) {
@@ -107,6 +112,9 @@ function renderPublicAnimals() {
   const available = publicAnimals.reduce((sum, animal) => sum + Number(animal.available || 0), 0);
   publicEls.totalAnimals.textContent = publicAnimals.length;
   publicEls.availableShares.textContent = available;
+  renderPackages();
+  renderGallery();
+  renderBookingOptions();
 
   if (!filtered.length) {
     publicEls.list.innerHTML = '<div class="empty-state">Tidak ada hewan yang cocok dengan filter saat ini.</div>';
@@ -159,6 +167,71 @@ function renderPublicAnimals() {
         </div>
       </article>
     `;
+  }).join("");
+}
+
+function renderPackages() {
+  if (!publicEls.packageGrid) return;
+
+  const packageTypes = ["Sapi", "Kambing", "Domba"].map((type) => {
+    const items = publicAnimals.filter((animal) => animal.type === type);
+    const cheapest = items.reduce((selected, animal) => {
+      const total = Number(animal.price || 0) + Number(animal.cost || 0);
+      if (!selected || total < selected.total) return { animal, total };
+      return selected;
+    }, null);
+    const capacity = type === "Sapi" ? "Patungan 1/7 sapi" : "Qurban per ekor";
+    const available = items.reduce((sum, animal) => sum + Number(animal.available || 0), 0);
+    return {
+      type,
+      capacity,
+      available,
+      price: cheapest ? cheapest.total : 0,
+      status: available > 0 ? "Tersedia" : "Menunggu stok",
+    };
+  });
+
+  publicEls.packageGrid.innerHTML = packageTypes.map((item) => `
+    <article class="package-card">
+      <span>${escapeHtml(item.capacity)}</span>
+      <h3>${escapeHtml(item.type)}</h3>
+      <strong>${item.price ? money(item.price) : "Hubungi panitia"}</strong>
+      <p>${item.available} kuota tersedia</p>
+      <small>${escapeHtml(item.status)}</small>
+    </article>
+  `).join("");
+}
+
+function renderGallery() {
+  if (!publicEls.gallery) return;
+  const galleryItems = publicAnimals.slice(0, 6);
+  if (!galleryItems.length) {
+    publicEls.gallery.innerHTML = "";
+    return;
+  }
+
+  publicEls.gallery.innerHTML = galleryItems.map((animal) => {
+    const photoUrl = animal.photoUrl || getFallbackAnimalPhoto(animal.type);
+    const fallbackPhoto = getFallbackAnimalPhoto(animal.type);
+    return `
+      <figure>
+        <img src="${escapeHtml(photoUrl)}" alt="Galeri ${escapeHtml(animal.type)} ${escapeHtml(animal.code)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallbackPhoto)}';" />
+        <figcaption>${escapeHtml(animal.code)} - ${escapeHtml(animal.type)}</figcaption>
+      </figure>
+    `;
+  }).join("");
+}
+
+function renderBookingOptions() {
+  if (!publicEls.bookingSelect) return;
+  const availableAnimals = publicAnimals.filter((animal) => Number(animal.available || 0) > 0);
+  if (!availableAnimals.length) {
+    publicEls.bookingSelect.innerHTML = '<option value="">Belum ada kuota tersedia</option>';
+    return;
+  }
+
+  publicEls.bookingSelect.innerHTML = availableAnimals.map((animal) => {
+    return `<option value="${escapeHtml(animal.id)}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)} (${Number(animal.available || 0)} kuota)</option>`;
   }).join("");
 }
 
@@ -232,5 +305,17 @@ async function fetchJson(url) {
   element.addEventListener("input", renderPublicAnimals);
   element.addEventListener("change", renderPublicAnimals);
 });
+
+if (publicEls.bookingForm) {
+  publicEls.bookingForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const formData = Object.fromEntries(new FormData(publicEls.bookingForm));
+    const animal = publicAnimals.find((item) => item.id === formData.animalId);
+    const animalLabel = animal ? `${animal.code} - ${animal.type}` : "hewan qurban";
+    publicEls.bookingResult.textContent = `Terima kasih, ${formData.name}. Minat booking ${animalLabel} sudah dicatat sementara. Panitia akan menghubungi ${formData.phone}.`;
+    publicEls.bookingForm.reset();
+    renderBookingOptions();
+  });
+}
 
 loadAnimals();

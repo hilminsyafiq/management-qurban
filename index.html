@@ -12,6 +12,12 @@
         <img src="assets/qurban-mark.svg" alt="" />
         <span>QurbanOps</span>
       </a>
+      <nav class="site-nav" aria-label="Navigasi utama">
+        <a href="#paketQurban">Paket</a>
+        <a href="#listHewan">Hewan</a>
+        <a href="#bookingQurban">Booking</a>
+        <a href="#distribusi">Distribusi</a>
+      </nav>
       <a class="admin-link" href="admin.html">Admin</a>
     </header>
 
@@ -22,7 +28,8 @@
           <h1>Qurban yang tertata, amanah yang sampai.</h1>
           <p>Pilih hewan qurban, pantau sisa kuota, dan ikuti jadwal penyembelihan dari data panitia.</p>
           <div class="hero-actions">
-            <a class="primary-cta" href="#listHewan">Lihat hewan</a>
+            <a class="primary-cta" href="#bookingQurban">Booking qurban</a>
+            <a class="text-cta" href="#listHewan">Lihat hewan</a>
           </div>
           <div class="eid-notes" aria-label="Nilai pelaksanaan qurban">
             <span>Takbir Idul Adha</span>
@@ -40,6 +47,30 @@
             <strong id="publicAvailableShares">0</strong>
           </div>
         </div>
+      </section>
+
+      <section class="trust-strip" aria-label="Keunggulan layanan qurban">
+        <div>
+          <strong>Data terbuka</strong>
+          <span>Kuota dan status hewan bisa dipantau jamaah.</span>
+        </div>
+        <div>
+          <strong>Pembayaran tercatat</strong>
+          <span>Panitia dapat memantau iuran dan pelunasan.</span>
+        </div>
+        <div>
+          <strong>Distribusi amanah</strong>
+          <span>Paket daging disiapkan untuk warga dan mustahik.</span>
+        </div>
+      </section>
+
+      <section class="landing-section packages-section" id="paketQurban">
+        <div class="section-copy">
+          <p class="eyebrow">Paket qurban</p>
+          <h2>Pilihan hewan untuk keluarga dan jamaah.</h2>
+          <p>Setiap paket menampilkan kuota, estimasi biaya, dan status agar keputusan qurban lebih jelas.</p>
+        </div>
+        <div class="package-grid" id="packageGrid" aria-live="polite"></div>
       </section>
 
       <section class="catalog-head" id="listHewan">
@@ -73,6 +104,77 @@
       </section>
 
       <section class="animal-list" id="publicAnimalList" aria-live="polite"></section>
+
+      <section class="landing-section booking-section" id="bookingQurban">
+        <div class="section-copy">
+          <p class="eyebrow">Booking peserta</p>
+          <h2>Daftar minat qurban dalam tiga langkah.</h2>
+          <p>Isi data awal, pilih hewan yang tersedia, lalu panitia akan menghubungi untuk konfirmasi pembayaran.</p>
+        </div>
+        <form class="booking-form" id="bookingForm">
+          <label>
+            Nama lengkap
+            <input name="name" required placeholder="Nama shohibul qurban" />
+          </label>
+          <label>
+            Nomor WhatsApp
+            <input name="phone" required placeholder="08xxxxxxxxxx" />
+          </label>
+          <label>
+            Pilihan hewan
+            <select name="animalId" id="bookingAnimalSelect" required></select>
+          </label>
+          <label>
+            Catatan
+            <input name="note" placeholder="Atas nama keluarga, patungan, atau catatan lain" />
+          </label>
+          <button class="primary-cta" type="submit">Kirim minat booking</button>
+          <div class="booking-result" id="bookingResult" role="status"></div>
+        </form>
+      </section>
+
+      <section class="landing-section gallery-section">
+        <div class="section-copy">
+          <p class="eyebrow">Galeri hewan</p>
+          <h2>Foto hewan qurban yang siap dipilih.</h2>
+        </div>
+        <div class="gallery-grid" id="animalGallery"></div>
+      </section>
+
+      <section class="landing-section distribution-section" id="distribusi">
+        <div class="section-copy">
+          <p class="eyebrow">Distribusi daging</p>
+          <h2>Alokasi paket dibuat transparan.</h2>
+          <p>Panitia dapat mengatur pembagian untuk warga, mustahik, peserta, dan petugas agar pelaksanaan lebih rapi.</p>
+        </div>
+        <div class="distribution-grid">
+          <div><span>Warga sekitar</span><strong>120</strong></div>
+          <div><span>Mustahik</span><strong>48</strong></div>
+          <div><span>Peserta</span><strong>16</strong></div>
+          <div><span>Panitia</span><strong>20</strong></div>
+        </div>
+      </section>
+
+      <section class="landing-section testimonials-section">
+        <div class="section-copy">
+          <p class="eyebrow">Cerita jamaah</p>
+          <h2>Qurban terasa lebih tenang saat datanya jelas.</h2>
+        </div>
+        <div class="testimonial-grid">
+          <figure>
+            <blockquote>Kuota sapi terlihat jelas, jadi keluarga kami bisa ikut patungan tanpa bolak-balik tanya panitia.</blockquote>
+            <figcaption>Ahmad Fauzi, peserta qurban</figcaption>
+          </figure>
+          <figure>
+            <blockquote>Data hewan, pembayaran, dan distribusi lebih rapi. Panitia jadi lebih mudah membagi tugas.</blockquote>
+            <figcaption>Siti Aminah, panitia masjid</figcaption>
+          </figure>
+          <figure>
+            <blockquote>Informasi jadwal dan paket daging membantu warga memahami alur qurban tahun ini.</blockquote>
+            <figcaption>Ridwan Hakim, warga sekitar</figcaption>
+          </figure>
+        </div>
+      </section>
     </main>
 
     <script src="src/config.js"></script>
