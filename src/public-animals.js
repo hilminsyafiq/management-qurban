@@ -156,8 +156,12 @@ function renderPublicAnimals() {
               <strong>${escapeHtml(formatSchedule(animal.schedule))}</strong>
             </div>
             <div>
-              <span>Sisa peserta</span>
-              <strong>${Number(animal.available || 0)}</strong>
+              <span>Lokasi</span>
+              <strong>${escapeHtml(animal.location || "Kandang panitia")}</strong>
+            </div>
+            <div>
+              <span>Umur</span>
+              <strong>${escapeHtml(animal.age || "Sesuai syarat")}</strong>
             </div>
           </div>
         </div>
@@ -317,7 +321,7 @@ if (publicEls.bookingForm) {
     const formData = Object.fromEntries(new FormData(publicEls.bookingForm));
     const animal = publicAnimals.find((item) => item.id === formData.animalId);
     const animalLabel = animal ? `${animal.code} - ${animal.type}` : "hewan qurban";
-    publicEls.bookingResult.textContent = `Terima kasih, ${formData.name}. Minat booking ${animalLabel} sudah dicatat sementara. Panitia akan menghubungi ${formData.phone}.`;
+    publicEls.bookingResult.textContent = `Terima kasih, ${formData.name}. Minat booking ${animalLabel} dengan metode ${formData.paymentMethod} sudah dicatat sementara. Panitia akan menghubungi ${formData.phone}.`;
     publicEls.bookingForm.reset();
     renderBookingOptions();
   });

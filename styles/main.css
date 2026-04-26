@@ -429,6 +429,32 @@ label {
   border: 1px solid var(--line);
 }
 
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.health-grid label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.health-grid input {
+  width: auto;
+}
+
+@media (max-width: 720px) {
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 dialog {
   width: min(560px, calc(100vw - 28px));
   border: 0;

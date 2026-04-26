@@ -18,6 +18,10 @@ const defaultState = {
       status: "paid",
       schedule: "2026-05-28T07:30",
       photoUrl: fallbackPhotos.Sapi,
+      age: "2 tahun",
+      location: "Kandang Masjid Al-Ikhlas",
+      carcassWeight: 238,
+      health: { brightEyes: true, healthyCoat: true, noDefect: true },
     },
     {
       id: crypto.randomUUID(),
@@ -29,6 +33,10 @@ const defaultState = {
       status: "booking",
       schedule: "2026-05-28T09:00",
       photoUrl: fallbackPhotos.Kambing,
+      age: "18 bulan",
+      location: "Kandang vendor",
+      carcassWeight: 0,
+      health: { brightEyes: true, healthyCoat: true, noDefect: true },
     },
   ],
   participants: [],
@@ -46,25 +54,37 @@ defaultState.participants = [
     id: crypto.randomUUID(),
     name: "Ahmad Fauzi",
     phone: "0812-1111-2222",
+    address: "Jl. Melati No. 7",
     animalId: defaultState.animals[0].id,
+    packageType: "Patungan sapi",
+    paymentMethod: "Transfer",
     due: 4300000,
     paid: 4300000,
+    token: "QBN-0001",
   },
   {
     id: crypto.randomUUID(),
     name: "Siti Aminah",
     phone: "0812-3333-4444",
+    address: "Jl. Kenanga No. 12",
     animalId: defaultState.animals[0].id,
+    packageType: "Patungan sapi",
+    paymentMethod: "QRIS",
     due: 4300000,
     paid: 2500000,
+    token: "QBN-0002",
   },
   {
     id: crypto.randomUUID(),
     name: "Ridwan Hakim",
     phone: "0812-5555-6666",
+    address: "Jl. Mawar No. 3",
     animalId: defaultState.animals[1].id,
+    packageType: "Kambing individu",
+    paymentMethod: "Tunai",
     due: 3850000,
     paid: 1000000,
+    token: "QBN-0003",
   },
 ];
 
@@ -348,7 +368,7 @@ function renderAnimalsTable() {
 
 function renderParticipantsTable() {
   if (!state.participants.length) {
-    els.participantsTable.innerHTML = '<tr><td colspan="7">Belum ada peserta qurban.</td></tr>';
+    els.participantsTable.innerHTML = '<tr><td colspan="9">Belum ada peserta qurban.</td></tr>';
     return;
   }
 
@@ -359,8 +379,10 @@ function renderParticipantsTable() {
       const className = remaining <= 0 ? "" : "warn";
       return `
         <tr>
+          <td><strong>${escapeHtml(participant.token || "-")}</strong></td>
           <td><strong>${escapeHtml(participant.name)}</strong></td>
           <td>${escapeHtml(participant.phone)}</td>
+          <td>${escapeHtml(participant.address || "-")}</td>
           <td>${animal ? escapeHtml(animal.code) : "Tidak ada"}</td>
           <td>${money(participant.due)}</td>
           <td>${money(participant.paid)}</td>
@@ -394,6 +416,8 @@ function renderValidation() {
     if (count > capacity) issues.push(`${animal.code} melebihi kuota ${capacity} peserta.`);
     if (count === 0) issues.push(`${animal.code} belum punya peserta.`);
     if (!animal.schedule) issues.push(`${animal.code} belum punya jadwal sembelih.`);
+    if (!animal.location) issues.push(`${animal.code} belum punya lokasi penitipan.`);
+    if (!isAnimalHealthy(animal)) issues.push(`${animal.code} belum lolos checklist kesehatan.`);
   });
 
   state.participants.forEach((participant) => {
@@ -421,6 +445,10 @@ function fillAnimalOptions() {
   if (selected) els.participantForm.elements.animalId.value = selected;
 }
 
+function isAnimalHealthy(animal) {
+  return Boolean(animal.health && animal.health.brightEyes && animal.health.healthyCoat && animal.health.noDefect);
+}
+
 function formatSchedule(value) {
   if (!value) return "Belum dijadwalkan";
   return new Intl.DateTimeFormat("id-ID", {
@@ -441,13 +469,22 @@ function openAnimalForm(animalId) {
   if (animalId) {
     const animal = state.animals.find((item) => item.id === animalId);
     Object.entries(animal).forEach(([key, value]) => {
-      if (form.elements[key]) form.elements[key].value = value;
+      if (key === "health" && value) {
+        form.elements.brightEyes.checked = Boolean(value.brightEyes);
+        form.elements.healthyCoat.checked = Boolean(value.healthyCoat);
+        form.elements.noDefect.checked = Boolean(value.noDefect);
+      } else if (form.elements[key]) {
+        form.elements[key].value = value;
+      }
     });
     setPhotoPreview(animal.photoUrl);
   } else {
     form.elements.id.value = "";
     form.elements.status.value = "booking";
     form.elements.code.value = nextAnimalCode();
+    form.elements.brightEyes.checked = true;
+    form.elements.healthyCoat.checked = true;
+    form.elements.noDefect.checked = true;
     form.elements.photoUrl.value = fallbackPhotos[form.elements.type.value] || fallbackPhotos.Sapi;
     setPhotoPreview(form.elements.photoUrl.value);
   }
@@ -468,6 +505,7 @@ function openParticipantForm(participantId) {
     });
   } else {
     form.elements.id.value = "";
+    form.elements.token.value = nextParticipantToken();
     form.elements.due.value = suggestDue(form.elements.animalId.value);
     form.elements.paid.value = 0;
   }
@@ -490,7 +528,15 @@ async function saveAnimal() {
     cost: Number(data.cost),
     status: data.status,
     schedule: data.schedule,
+    age: data.age.trim(),
+    location: data.location.trim(),
+    carcassWeight: Number(data.carcassWeight || 0),
     photoUrl: uploadedPhoto || data.photoUrl || fallbackPhotos[data.type] || fallbackPhotos.Sapi,
+    health: {
+      brightEyes: data.brightEyes === "on",
+      healthyCoat: data.healthyCoat === "on",
+      noDefect: data.noDefect === "on",
+    },
   };
 
   const index = state.animals.findIndex((item) => item.id === animal.id);
@@ -548,9 +594,13 @@ function saveParticipant() {
 
   const participant = {
     id: data.id || crypto.randomUUID(),
+    token: data.token || nextParticipantToken(),
     name: data.name.trim(),
     phone: data.phone.trim(),
+    address: data.address.trim(),
     animalId: data.animalId,
+    packageType: data.packageType,
+    paymentMethod: data.paymentMethod,
     due: Number(data.due),
     paid: Number(data.paid),
   };
@@ -592,6 +642,14 @@ function deleteParticipant(participantId) {
 function nextAnimalCode() {
   const number = String(state.animals.length + 1).padStart(2, "0");
   return `SP-${number}`;
+}
+
+function nextParticipantToken() {
+  const nextNumber = state.participants.reduce((max, participant) => {
+    const match = String(participant.token || "").match(/QBN-(\d+)/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `QBN-${String(nextNumber).padStart(4, "0")}`;
 }
 
 function suggestDue(animalId) {

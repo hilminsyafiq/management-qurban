@@ -133,8 +133,10 @@
               <table>
                 <thead>
                   <tr>
+                    <th>Token</th>
                     <th>Nama</th>
                     <th>Telepon</th>
+                    <th>Alamat</th>
                     <th>Hewan</th>
                     <th>Iuran</th>
                     <th>Dibayar</th>
@@ -203,10 +205,18 @@
           </select>
         </label>
         <label>Bobot kg <input name="weight" required min="1" type="number" /></label>
+        <label>Umur hewan <input name="age" placeholder="Contoh: 2 tahun" /></label>
         <label>Harga beli <input name="price" required min="0" type="number" /></label>
         <label>Biaya operasional <input name="cost" required min="0" type="number" /></label>
         <label>Jadwal sembelih <input name="schedule" type="datetime-local" /></label>
+        <label>Lokasi penitipan <input name="location" placeholder="Kandang / vendor / lokasi sembelih" /></label>
+        <label>Bobot karkas kg <input name="carcassWeight" min="0" step="0.1" type="number" /></label>
         <label>URL foto hewan <input name="photoUrl" type="text" placeholder="https://... atau hasil upload" /></label>
+        <div class="wide health-grid" aria-label="Checklist kesehatan hewan">
+          <label><input name="brightEyes" type="checkbox" /> Mata cerah</label>
+          <label><input name="healthyCoat" type="checkbox" /> Bulu tidak kusam</label>
+          <label><input name="noDefect" type="checkbox" /> Tidak cacat</label>
+        </div>
         <label class="wide photo-upload">
           Upload foto hewan
           <input id="animalPhotoFile" type="file" accept="image/*" />
@@ -235,9 +245,25 @@
           <button value="cancel" class="icon-btn" type="submit" formnovalidate aria-label="Tutup">x</button>
         </div>
         <input type="hidden" name="id" />
+        <input type="hidden" name="token" />
         <label>Nama peserta <input name="name" required /></label>
         <label>Telepon <input name="phone" required /></label>
+        <label>Alamat <input name="address" required /></label>
         <label>Pilih hewan <select name="animalId" required></select></label>
+        <label>Paket qurban
+          <select name="packageType">
+            <option value="Patungan sapi">Patungan sapi</option>
+            <option value="Kambing individu">Kambing individu</option>
+            <option value="Domba individu">Domba individu</option>
+          </select>
+        </label>
+        <label>Metode pembayaran
+          <select name="paymentMethod">
+            <option value="Transfer">Transfer</option>
+            <option value="Tunai">Tunai</option>
+            <option value="QRIS">QRIS</option>
+          </select>
+        </label>
         <label>Iuran wajib <input name="due" required min="0" type="number" /></label>
         <label>Sudah dibayar <input name="paid" required min="0" type="number" /></label>
         <div class="dialog-actions">
