@@ -1,4 +1,9 @@
 const STORAGE_KEY = "qurbanops-state-v1";
+const fallbackPhotos = {
+  Sapi: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82",
+  Kambing: "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82",
+  Domba: "https://images.unsplash.com/photo-1484557985045-edf25e08da73?auto=format&fit=crop&w=1200&q=82",
+};
 
 const defaultState = {
   animals: [
@@ -11,7 +16,7 @@ const defaultState = {
       cost: 1600000,
       status: "paid",
       schedule: "2026-05-28T07:30",
-      photoUrl: "assets/animal-sapi.svg",
+      photoUrl: fallbackPhotos.Sapi,
     },
     {
       id: crypto.randomUUID(),
@@ -22,7 +27,7 @@ const defaultState = {
       cost: 250000,
       status: "booking",
       schedule: "2026-05-28T09:00",
-      photoUrl: "assets/animal-kambing.svg",
+      photoUrl: fallbackPhotos.Kambing,
     },
   ],
   participants: [],
@@ -367,6 +372,7 @@ function formatSchedule(value) {
 function openAnimalForm(animalId) {
   const form = els.animalForm;
   form.reset();
+  setPhotoPreview("");
   document.querySelector("#animalDialogTitle").textContent = animalId ? "Edit hewan" : "Tambah hewan";
 
   if (animalId) {
@@ -374,10 +380,13 @@ function openAnimalForm(animalId) {
     Object.entries(animal).forEach(([key, value]) => {
       if (form.elements[key]) form.elements[key].value = value;
     });
+    setPhotoPreview(animal.photoUrl);
   } else {
     form.elements.id.value = "";
     form.elements.status.value = "booking";
     form.elements.code.value = nextAnimalCode();
+    form.elements.photoUrl.value = fallbackPhotos[form.elements.type.value] || fallbackPhotos.Sapi;
+    setPhotoPreview(form.elements.photoUrl.value);
   }
 
   els.animalDialog.showModal();
@@ -403,11 +412,12 @@ function openParticipantForm(participantId) {
   els.participantDialog.showModal();
 }
 
-function saveAnimal() {
+async function saveAnimal() {
   const form = els.animalForm;
   if (!form.reportValidity()) return;
 
   const data = Object.fromEntries(new FormData(form));
+  const uploadedPhoto = await readCompressedPhoto(document.querySelector("#animalPhotoFile").files[0]);
   const animal = {
     id: data.id || crypto.randomUUID(),
     code: data.code.trim().toUpperCase(),
@@ -417,7 +427,7 @@ function saveAnimal() {
     cost: Number(data.cost),
     status: data.status,
     schedule: data.schedule,
-    photoUrl: data.photoUrl,
+    photoUrl: uploadedPhoto || data.photoUrl || fallbackPhotos[data.type] || fallbackPhotos.Sapi,
   };
 
   const index = state.animals.findIndex((item) => item.id === animal.id);
@@ -426,6 +436,38 @@ function saveAnimal() {
 
   els.animalDialog.close();
   render();
+}
+
+function setPhotoPreview(src) {
+  const preview = document.querySelector("#animalPhotoPreview");
+  if (!preview) return;
+  preview.src = src || "";
+  preview.hidden = !src;
+}
+
+function readCompressedPhoto(file) {
+  if (!file) return Promise.resolve("");
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const maxSize = 900;
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.78));
+      };
+      image.onerror = reject;
+      image.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function saveParticipant() {
@@ -507,6 +549,17 @@ document.querySelector("#resetDemoBtn").addEventListener("click", () => {
 });
 
 els.statusFilter.addEventListener("change", renderAnimalBoard);
+els.animalForm.elements.type.addEventListener("change", (event) => {
+  if (!els.animalForm.elements.photoUrl.value) {
+    els.animalForm.elements.photoUrl.value = fallbackPhotos[event.target.value] || fallbackPhotos.Sapi;
+    setPhotoPreview(els.animalForm.elements.photoUrl.value);
+  }
+});
+els.animalForm.elements.photoUrl.addEventListener("input", (event) => setPhotoPreview(event.target.value));
+document.querySelector("#animalPhotoFile").addEventListener("change", async (event) => {
+  const preview = await readCompressedPhoto(event.target.files[0]);
+  setPhotoPreview(preview);
+});
 els.participantForm.elements.animalId.addEventListener("change", (event) => {
   els.participantForm.elements.due.value = suggestDue(event.target.value);
 });

@@ -190,7 +190,13 @@
         <label>Harga beli <input name="price" required min="0" type="number" /></label>
         <label>Biaya operasional <input name="cost" required min="0" type="number" /></label>
         <label>Jadwal sembelih <input name="schedule" type="datetime-local" /></label>
-        <label>URL foto hewan <input name="photoUrl" type="url" placeholder="https://..." /></label>
+        <label>URL foto hewan <input name="photoUrl" type="text" placeholder="https://... atau hasil upload" /></label>
+        <label class="wide photo-upload">
+          Upload foto hewan
+          <input id="animalPhotoFile" type="file" accept="image/*" />
+          <span>Foto akan dikompres otomatis sebelum disimpan.</span>
+          <img id="animalPhotoPreview" alt="" />
+        </label>
         <label>Status
           <select name="status">
             <option value="booking">Booking</option>

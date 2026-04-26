@@ -96,8 +96,9 @@ main {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(10, 42, 35, 0.94) 0%, rgba(10, 42, 35, 0.74) 45%, rgba(10, 42, 35, 0.16) 100%),
-    url("../assets/qurban-hero.svg") center right / cover no-repeat;
+    linear-gradient(90deg, rgba(9, 39, 33, 0.96) 0%, rgba(9, 39, 33, 0.74) 44%, rgba(9, 39, 33, 0.2) 100%),
+    linear-gradient(0deg, rgba(9, 39, 33, 0.26), rgba(9, 39, 33, 0.04)),
+    url("https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1800&q=84") center right / cover no-repeat;
   z-index: -2;
 }
 
@@ -127,6 +128,21 @@ main {
     linear-gradient(45deg, transparent 38%, #f2c86d 39% 48%, transparent 49%),
     linear-gradient(-45deg, transparent 38%, #f2c86d 39% 48%, transparent 49%);
   opacity: .95;
+}
+
+.hero-copy::after {
+  content: "";
+  position: absolute;
+  width: min(42vw, 420px);
+  aspect-ratio: 1 / .72;
+  right: max(-43vw, -520px);
+  bottom: 26px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 234, 0), rgba(18, 62, 53, 0.38)),
+    url("../assets/qurban-hero.svg") center / cover no-repeat;
+  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .eyebrow {
@@ -289,7 +305,7 @@ select {
 
 .animal-photo-wrap {
   position: relative;
-  aspect-ratio: 1.45 / 1;
+  aspect-ratio: 1.32 / 1;
   overflow: hidden;
   border-radius: 8px;
   margin: -4px -4px 18px;
@@ -301,11 +317,13 @@ select {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 260ms ease;
+  filter: saturate(1.02) contrast(1.02);
+  transition: transform 260ms ease, filter 260ms ease;
 }
 
 .animal-item:hover .animal-photo {
   transform: scale(1.035);
+  filter: saturate(1.08) contrast(1.04);
 }
 
 .photo-caption {
@@ -438,6 +456,10 @@ select {
   .catalog-head > div:first-child,
   .toolbar {
     grid-column: 1 / -1;
+  }
+
+  .hero-copy::after {
+    display: none;
   }
 }
 

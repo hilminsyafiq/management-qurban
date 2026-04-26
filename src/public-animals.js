@@ -8,7 +8,7 @@ const demoAnimals = [
     cost: 1600000,
     status: "paid",
     schedule: "2026-05-28T07:30",
-    photoUrl: "assets/animal-sapi.svg",
+    photoUrl: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82",
     capacity: 7,
     filled: 2,
     available: 5,
@@ -22,7 +22,7 @@ const demoAnimals = [
     cost: 250000,
     status: "booking",
     schedule: "2026-05-28T09:00",
-    photoUrl: "assets/animal-kambing.svg",
+    photoUrl: "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82",
     capacity: 1,
     filled: 1,
     available: 0,
@@ -36,7 +36,7 @@ const demoAnimals = [
     cost: 225000,
     status: "booking",
     schedule: "2026-05-28T10:00",
-    photoUrl: "assets/animal-domba.svg",
+    photoUrl: "https://images.unsplash.com/photo-1484557985045-edf25e08da73?auto=format&fit=crop&w=1200&q=82",
     capacity: 1,
     filled: 0,
     available: 1,
@@ -118,11 +118,12 @@ function renderPublicAnimals() {
     const totalPrice = Number(animal.price || 0) + Number(animal.cost || 0);
     const isFull = Number(animal.available || 0) <= 0;
     const photoUrl = animal.photoUrl || getFallbackAnimalPhoto(animal.type);
+    const fallbackPhoto = getFallbackAnimalPhoto(animal.type);
 
     return `
       <article class="animal-item">
         <div class="animal-photo-wrap">
-          <img class="animal-photo" src="${escapeHtml(photoUrl)}" alt="Foto ${escapeHtml(animal.type)} ${escapeHtml(animal.code)}" loading="lazy" />
+          <img class="animal-photo" src="${escapeHtml(photoUrl)}" alt="Foto ${escapeHtml(animal.type)} ${escapeHtml(animal.code)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallbackPhoto)}';" />
           <span class="photo-caption">Profil ${escapeHtml(animal.type)}</span>
         </div>
         <div>
@@ -162,9 +163,9 @@ function renderPublicAnimals() {
 }
 
 function getFallbackAnimalPhoto(type) {
-  if (type === "Kambing") return "assets/animal-kambing.svg";
-  if (type === "Domba") return "assets/animal-domba.svg";
-  return "assets/animal-sapi.svg";
+  if (type === "Kambing") return "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82";
+  if (type === "Domba") return "https://images.unsplash.com/photo-1484557985045-edf25e08da73?auto=format&fit=crop&w=1200&q=82";
+  return "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82";
 }
 
 function loadWithJsonp(url) {
