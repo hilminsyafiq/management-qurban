@@ -54,14 +54,36 @@ const defaultState = {
     ],
   },
   modules: {
-    savers: "Budi Santoso | 0812-7000-1000 | RT 02 | Patungan sapi | 1500000\nNur Aisyah | 0812-7000-2000 | RT 04 | Kambing individu | 900000",
-    savings: "2026-01-12 | Budi Santoso | 500000 | Transfer | Setoran awal\n2026-02-12 | Nur Aisyah | 300000 | Tunai | Setoran bulanan",
-    committee: "Ust. Rahman | Ketua | 0812-9000-1111 | Koordinasi umum\nIbu Sari | Bendahara | 0812-9000-2222 | Keuangan dan laporan",
-    periods: "Idul Adha 1447 H | 2026-01-01 | 2026-05-31 | Aktif",
-    transactions: "2026-01-12 | Pemasukan | Tabungan | 500000 | Setoran Budi\n2026-01-20 | Pengeluaran | Operasional | 250000 | Transport vendor",
-    meatYield: "SP-01 | 238 kg | 180 kantung | Sapi selesai diproses\nKG-01 | 22 kg | 18 kantung | Menunggu sembelih",
-    recipients: "RT 01 Kampung Melati | Warga | 40 | Siap dibagikan\nMasjid Al-Ikhlas | Mustahik | 35 | Terjadwal",
-    minutes: "2026-04-10 | Rapat panitia awal | Finalisasi vendor hewan | Ketua panitia",
+    savers: [
+      { name: "Budi Santoso", phone: "0812-7000-1000", address: "RT 02", target: "Patungan sapi", balance: "1500000" },
+      { name: "Nur Aisyah", phone: "0812-7000-2000", address: "RT 04", target: "Kambing individu", balance: "900000" },
+    ],
+    savings: [
+      { date: "2026-01-12", saver: "Budi Santoso", amount: "500000", method: "Transfer", note: "Setoran awal" },
+      { date: "2026-02-12", saver: "Nur Aisyah", amount: "300000", method: "Tunai", note: "Setoran bulanan" },
+    ],
+    committee: [
+      { name: "Ust. Rahman", role: "Ketua", phone: "0812-9000-1111", task: "Koordinasi umum" },
+      { name: "Ibu Sari", role: "Bendahara", phone: "0812-9000-2222", task: "Keuangan dan laporan" },
+    ],
+    periods: [
+      { name: "Idul Adha 1447 H", start: "2026-01-01", end: "2026-05-31", status: "Aktif" },
+    ],
+    transactions: [
+      { date: "2026-01-12", type: "Pemasukan", category: "Tabungan", amount: "500000", note: "Setoran Budi" },
+      { date: "2026-01-20", type: "Pengeluaran", category: "Operasional", amount: "250000", note: "Transport vendor" },
+    ],
+    meatYield: [
+      { animalCode: "SP-01", carcassWeight: "238", bags: "180", note: "Sapi selesai diproses" },
+      { animalCode: "KG-01", carcassWeight: "22", bags: "18", note: "Menunggu sembelih" },
+    ],
+    recipients: [
+      { name: "RT 01 Kampung Melati", category: "Warga", bags: "40", status: "Siap dibagikan" },
+      { name: "Masjid Al-Ikhlas", category: "Mustahik", bags: "35", status: "Terjadwal" },
+    ],
+    minutes: [
+      { date: "2026-04-10", agenda: "Rapat panitia awal", decision: "Finalisasi vendor hewan", pic: "Ketua panitia" },
+    ],
   },
 };
 
@@ -124,12 +146,98 @@ const els = {
   animalForm: document.querySelector("#animalForm"),
   participantForm: document.querySelector("#participantForm"),
   distributionForm: document.querySelector("#distributionForm"),
-  modulesForm: document.querySelector("#modulesForm"),
+  moduleSections: document.querySelector("#moduleSections"),
   distributionTargetsPreview: document.querySelector("#distributionTargetsPreview"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
   adminLoginError: document.querySelector("#adminLoginError"),
+};
+
+const moduleConfigs = {
+  savers: {
+    title: "Penabung kurban",
+    description: "Data jamaah yang menabung untuk paket kurban.",
+    fields: [
+      ["name", "Nama"],
+      ["phone", "Telepon"],
+      ["address", "Alamat"],
+      ["target", "Target paket"],
+      ["balance", "Saldo"],
+    ],
+  },
+  savings: {
+    title: "Tabungan kurban",
+    description: "Riwayat setoran tabungan kurban.",
+    fields: [
+      ["date", "Tanggal"],
+      ["saver", "Penabung"],
+      ["amount", "Nominal"],
+      ["method", "Metode"],
+      ["note", "Catatan"],
+    ],
+  },
+  committee: {
+    title: "Pengaturan panitia",
+    description: "Struktur panitia dan pembagian tugas.",
+    fields: [
+      ["name", "Nama"],
+      ["role", "Jabatan"],
+      ["phone", "Telepon"],
+      ["task", "Tugas"],
+    ],
+  },
+  periods: {
+    title: "Periode kurban",
+    description: "Periode pelaksanaan kurban yang aktif.",
+    fields: [
+      ["name", "Periode"],
+      ["start", "Mulai"],
+      ["end", "Selesai"],
+      ["status", "Status"],
+    ],
+  },
+  transactions: {
+    title: "Transaksi",
+    description: "Pemasukan dan pengeluaran operasional.",
+    fields: [
+      ["date", "Tanggal"],
+      ["type", "Tipe"],
+      ["category", "Kategori"],
+      ["amount", "Nominal"],
+      ["note", "Catatan"],
+    ],
+  },
+  meatYield: {
+    title: "Perolehan daging",
+    description: "Hasil sembelihan dan jumlah kantung.",
+    fields: [
+      ["animalCode", "Kode hewan"],
+      ["carcassWeight", "Bobot karkas"],
+      ["bags", "Kantung"],
+      ["note", "Catatan"],
+    ],
+  },
+  recipients: {
+    title: "Penerima daging",
+    description: "Data penerima paket daging kurban.",
+    fields: [
+      ["name", "Nama/Wilayah/Masjid"],
+      ["category", "Kategori"],
+      ["bags", "Kantung"],
+      ["status", "Status"],
+    ],
+  },
+  minutes: {
+    title: "Notulensi rapat",
+    description: "Agenda, keputusan, dan PIC rapat panitia.",
+    fields: [
+      ["date", "Tanggal"],
+      ["agenda", "Agenda"],
+      ["decision", "Keputusan"],
+      ["pic", "PIC"],
+    ],
+  },
 };
 
 function loadState() {
@@ -690,29 +798,58 @@ function renderDistributionTargetsPreview() {
 }
 
 function renderModulesForm() {
-  if (!els.modulesForm) return;
-  const modules = state.modules || {};
-  Object.entries(modules).forEach(([key, value]) => {
-    if (els.modulesForm.elements[key]) els.modulesForm.elements[key].value = value;
-  });
+  if (!els.moduleSections) return;
+  ensureModuleShape();
+  els.moduleSections.innerHTML = Object.entries(moduleConfigs).map(([key, config]) => {
+    const rows = state.modules[key] || [];
+    const fields = config.fields.map(([field, label]) => `
+      <label>
+        ${escapeHtml(label)}
+        <input name="${escapeHtml(field)}" data-module-field="${escapeHtml(field)}" />
+      </label>
+    `).join("");
+    const tableRows = rows.length ? rows.map((row, index) => `
+      <tr>
+        ${config.fields.map(([field]) => `<td>${escapeHtml(row[field] || "-")}</td>`).join("")}
+        <td><button class="link-btn danger" data-module-delete="${escapeHtml(key)}" data-module-index="${index}" type="button">Hapus</button></td>
+      </tr>
+    `).join("") : `<tr><td colspan="${config.fields.length + 1}">Belum ada data.</td></tr>`;
+
+    return `
+      <section class="module-card" data-module="${escapeHtml(key)}">
+        <div class="module-head">
+          <div>
+            <h3>${escapeHtml(config.title)}</h3>
+            <p>${escapeHtml(config.description)}</p>
+          </div>
+          <button class="primary-btn" data-module-add="${escapeHtml(key)}" type="button">Tambah</button>
+        </div>
+        <form class="module-entry-form" data-module-form="${escapeHtml(key)}">
+          ${fields}
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                ${config.fields.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }).join("");
 }
 
 function saveModules() {
-  const data = Object.fromEntries(new FormData(els.modulesForm));
-  state.modules = {
-    savers: data.savers || "",
-    savings: data.savings || "",
-    committee: data.committee || "",
-    periods: data.periods || "",
-    transactions: data.transactions || "",
-    meatYield: data.meatYield || "",
-    recipients: data.recipients || "",
-    minutes: data.minutes || "",
-  };
+  ensureModuleShape();
   render();
 }
 
 function printModuleReport(title, content) {
+  const printableContent = Array.isArray(content) ? moduleRowsToText(content) : content;
   const report = window.open("", "_blank", "width=900,height=700");
   if (!report) return;
   report.document.write(`
@@ -729,12 +866,61 @@ function printModuleReport(title, content) {
       </head>
       <body>
         <h1>${escapeHtml(title)}</h1>
-        <pre>${escapeHtml(content || "Belum ada data.")}</pre>
+        <pre>${escapeHtml(printableContent || "Belum ada data.")}</pre>
       </body>
     </html>
   `);
   report.document.close();
   report.print();
+}
+
+function ensureModuleShape() {
+  state.modules = state.modules || structuredClone(defaultState.modules);
+  Object.entries(moduleConfigs).forEach(([key, config]) => {
+    if (Array.isArray(state.modules[key])) return;
+    state.modules[key] = legacyModuleTextToRows(state.modules[key], config.fields);
+  });
+}
+
+function legacyModuleTextToRows(value, fields) {
+  if (!value) return [];
+  return String(value).split(/\r?\n/).filter(Boolean).map((line) => {
+    const parts = line.split("|").map((part) => part.trim());
+    return fields.reduce((row, [field], index) => {
+      row[field] = parts[index] || "";
+      return row;
+    }, {});
+  });
+}
+
+function moduleRowsToText(rows) {
+  return rows.map((row) => Object.values(row).join(" | ")).join("\n");
+}
+
+function addModuleRecord(moduleKey) {
+  const config = moduleConfigs[moduleKey];
+  const form = document.querySelector(`[data-module-form="${moduleKey}"]`);
+  if (!config || !form) return;
+
+  const record = {};
+  config.fields.forEach(([field]) => {
+    record[field] = form.elements[field] ? form.elements[field].value.trim() : "";
+  });
+
+  if (!Object.values(record).some(Boolean)) {
+    alert("Isi minimal satu field sebelum menambah data.");
+    return;
+  }
+
+  ensureModuleShape();
+  state.modules[moduleKey].push(record);
+  render();
+}
+
+function deleteModuleRecord(moduleKey, index) {
+  ensureModuleShape();
+  state.modules[moduleKey].splice(index, 1);
+  render();
 }
 
 function deleteAnimal(animalId) {
@@ -830,11 +1016,16 @@ document.addEventListener("click", (event) => {
   const deleteAnimalId = event.target.dataset.deleteAnimal;
   const editParticipantId = event.target.dataset.editParticipant;
   const deleteParticipantId = event.target.dataset.deleteParticipant;
+  const moduleAdd = event.target.dataset.moduleAdd;
+  const moduleDelete = event.target.dataset.moduleDelete;
+  const moduleIndex = event.target.dataset.moduleIndex;
 
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
   if (editParticipantId) openParticipantForm(editParticipantId);
   if (deleteParticipantId) deleteParticipant(deleteParticipantId);
+  if (moduleAdd) addModuleRecord(moduleAdd);
+  if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));
 });
 
 async function bootstrap() {
