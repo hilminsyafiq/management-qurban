@@ -223,6 +223,39 @@
                   </select>
                 </label>
               </form>
+              <div class="module-head distribution-recipient-head">
+                <div>
+                  <h3>Daftar perorangan dalam wilayah/masjid</h3>
+                  <p>Tambahkan penerima yang berada di bawah tujuan distribusi tertentu.</p>
+                </div>
+                <button class="primary-btn" id="addDistributionRecipientBtn" type="button">Tambah penerima</button>
+              </div>
+              <form class="distribution-recipient-form" id="distributionRecipientForm">
+                <label>
+                  Tujuan
+                  <select name="targetIndex" id="distributionRecipientTargetSelect" required></select>
+                </label>
+                <label>
+                  Nama penerima
+                  <input name="name" required placeholder="Nama warga/penerima" />
+                </label>
+                <label>
+                  Kontak/NIK
+                  <input name="contact" placeholder="Opsional" />
+                </label>
+                <label>
+                  Kantung
+                  <input name="bags" min="1" type="number" required />
+                </label>
+                <label>
+                  Status
+                  <select name="status">
+                    <option value="Belum diambil">Belum diambil</option>
+                    <option value="Sudah diambil">Sudah diambil</option>
+                    <option value="Diantar">Diantar</option>
+                  </select>
+                </label>
+              </form>
               <div class="table-wrap">
                 <table>
                   <thead>

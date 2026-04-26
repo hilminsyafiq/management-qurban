@@ -47,10 +47,20 @@ const defaultState = {
     peserta: 16,
     notes: "Prioritaskan mustahik dan warga sekitar masjid.",
     targets: [
-      { destination: "RT 01 Kampung Melati", category: "Warga", bags: 40, pic: "Pak Ahmad", status: "Siap dibagikan" },
-      { destination: "Masjid Al-Ikhlas", category: "Mustahik", bags: 35, pic: "Bu Siti", status: "Terjadwal" },
-      { destination: "Musholla An-Nur", category: "Mustahik", bags: 28, pic: "Pak Ridwan", status: "Menunggu pengemasan" },
-      { destination: "Panitia lapangan", category: "Panitia", bags: 12, pic: "Koordinator", status: "Cadangan operasional" },
+      {
+        destination: "RT 01 Kampung Melati",
+        category: "Warga",
+        bags: 40,
+        pic: "Pak Ahmad",
+        status: "Siap dibagikan",
+        recipients: [
+          { name: "Bapak Hasan", contact: "RT 01", bags: 2, status: "Belum diambil" },
+          { name: "Ibu Aminah", contact: "RT 01", bags: 2, status: "Sudah diambil" },
+        ],
+      },
+      { destination: "Masjid Al-Ikhlas", category: "Mustahik", bags: 35, pic: "Bu Siti", status: "Terjadwal", recipients: [] },
+      { destination: "Musholla An-Nur", category: "Mustahik", bags: 28, pic: "Pak Ridwan", status: "Menunggu pengemasan", recipients: [] },
+      { destination: "Panitia lapangan", category: "Panitia", bags: 12, pic: "Koordinator", status: "Cadangan operasional", recipients: [] },
     ],
   },
   modules: {
@@ -147,6 +157,8 @@ const els = {
   participantForm: document.querySelector("#participantForm"),
   distributionForm: document.querySelector("#distributionForm"),
   distributionTargetForm: document.querySelector("#distributionTargetForm"),
+  distributionRecipientForm: document.querySelector("#distributionRecipientForm"),
+  distributionRecipientTargetSelect: document.querySelector("#distributionRecipientTargetSelect"),
   distributionTargetsTable: document.querySelector("#distributionTargetsTable"),
   distributionDestinationList: document.querySelector("#distributionDestinationList"),
   moduleSections: document.querySelector("#moduleSections"),
@@ -532,12 +544,17 @@ function renderParticipantsTable() {
 }
 
 function renderDistributionForm() {
+  state.distribution.targets = (state.distribution.targets || []).map((target) => ({
+    ...target,
+    recipients: Array.isArray(target.recipients) ? target.recipients : [],
+  }));
   Object.entries(state.distribution).forEach(([key, value]) => {
     if (key !== "targets" && els.distributionForm.elements[key]) {
       els.distributionForm.elements[key].value = value;
     }
   });
   renderDistributionTargetsTable();
+  renderDistributionRecipientTargetOptions();
   renderDistributionDestinationOptions();
 }
 
@@ -776,7 +793,27 @@ function renderDistributionTargetsTable() {
       <td><span class="badge">${escapeHtml(target.status || "-")}</span></td>
       <td><button class="link-btn danger" data-delete-distribution-target="${index}" type="button">Hapus</button></td>
     </tr>
+    ${(target.recipients || []).map((recipient, recipientIndex) => `
+      <tr class="recipient-row">
+        <td colspan="2">${escapeHtml(recipient.name)} <span>${escapeHtml(recipient.contact || "")}</span></td>
+        <td>${Number(recipient.bags || 0)}</td>
+        <td colspan="2"><span class="badge">${escapeHtml(recipient.status || "-")}</span></td>
+        <td><button class="link-btn danger" data-delete-distribution-recipient="${index}" data-recipient-index="${recipientIndex}" type="button">Hapus</button></td>
+      </tr>
+    `).join("")}
   `).join("");
+}
+
+function renderDistributionRecipientTargetOptions() {
+  if (!els.distributionRecipientTargetSelect) return;
+  const targets = state.distribution.targets || [];
+  if (!targets.length) {
+    els.distributionRecipientTargetSelect.innerHTML = '<option value="">Tambah tujuan dulu</option>';
+    return;
+  }
+  els.distributionRecipientTargetSelect.innerHTML = targets.map((target, index) => {
+    return `<option value="${index}">${escapeHtml(target.destination)} - ${escapeHtml(target.category)}</option>`;
+  }).join("");
 }
 
 function renderDistributionDestinationOptions() {
@@ -799,8 +836,36 @@ function addDistributionTarget() {
     bags: Number(data.bags || 0),
     pic: data.pic.trim(),
     status: data.status,
+    recipients: [],
   });
   form.reset();
+  render();
+}
+
+function addDistributionRecipient() {
+  const form = els.distributionRecipientForm;
+  if (!form.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(form));
+  const target = state.distribution.targets[Number(data.targetIndex)];
+  if (!target) {
+    alert("Pilih tujuan distribusi terlebih dahulu.");
+    return;
+  }
+  target.recipients = target.recipients || [];
+  target.recipients.push({
+    name: data.name.trim(),
+    contact: data.contact.trim(),
+    bags: Number(data.bags || 0),
+    status: data.status,
+  });
+  form.reset();
+  render();
+}
+
+function deleteDistributionRecipient(targetIndex, recipientIndex) {
+  const target = state.distribution.targets[targetIndex];
+  if (!target || !target.recipients) return;
+  target.recipients.splice(recipientIndex, 1);
   render();
 }
 
@@ -976,6 +1041,7 @@ document.querySelector("#saveAnimalBtn").addEventListener("click", saveAnimal);
 document.querySelector("#saveParticipantBtn").addEventListener("click", saveParticipant);
 document.querySelector("#saveDistributionBtn").addEventListener("click", saveDistribution);
 document.querySelector("#addDistributionTargetBtn").addEventListener("click", addDistributionTarget);
+document.querySelector("#addDistributionRecipientBtn").addEventListener("click", addDistributionRecipient);
 document.querySelector("#saveModulesBtn").addEventListener("click", saveModules);
 document.querySelector("#printSavingsBtn").addEventListener("click", () => printModuleReport("Laporan Tabungan Kurban", state.modules && state.modules.savings));
 document.querySelector("#printTransactionsBtn").addEventListener("click", () => printModuleReport("Laporan Transaksi Kurban", state.modules && state.modules.transactions));
@@ -1033,6 +1099,8 @@ document.addEventListener("click", (event) => {
   const moduleDelete = event.target.dataset.moduleDelete;
   const moduleIndex = event.target.dataset.moduleIndex;
   const deleteDistributionTargetIndex = event.target.dataset.deleteDistributionTarget;
+  const deleteDistributionRecipientTarget = event.target.dataset.deleteDistributionRecipient;
+  const deleteDistributionRecipientIndex = event.target.dataset.recipientIndex;
 
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
@@ -1041,6 +1109,7 @@ document.addEventListener("click", (event) => {
   if (moduleAdd) addModuleRecord(moduleAdd);
   if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));
   if (deleteDistributionTargetIndex !== undefined) deleteDistributionTarget(Number(deleteDistributionTargetIndex));
+  if (deleteDistributionRecipientTarget !== undefined) deleteDistributionRecipient(Number(deleteDistributionRecipientTarget), Number(deleteDistributionRecipientIndex));
 });
 
 async function bootstrap() {

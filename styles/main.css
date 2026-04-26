@@ -474,6 +474,27 @@ th {
   margin-bottom: 14px;
 }
 
+.distribution-recipient-head {
+  margin-top: 18px;
+}
+
+.distribution-recipient-form {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr .7fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.recipient-row td {
+  background: #f8f1e4;
+  color: var(--muted);
+}
+
+.recipient-row span {
+  margin-left: 8px;
+  font-size: 12px;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -621,6 +642,7 @@ dialog::backdrop {
   .workspace,
   .distribution-grid,
   .distribution-target-form,
+  .distribution-recipient-form,
   .module-entry-form {
     grid-template-columns: 1fr;
   }
