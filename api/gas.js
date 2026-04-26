@@ -19,7 +19,6 @@ const ALLOWED_POST_ACTIONS = new Set([
 export default async function handler(request, response) {
   const gasUrl = process.env.GAS_WEB_APP_URL;
   const adminToken = process.env.GAS_ADMIN_TOKEN;
-  const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (!gasUrl) {
     response.status(500).json({
@@ -31,12 +30,12 @@ export default async function handler(request, response) {
 
   try {
     if (request.method === "GET") {
-      await handleGet(request, response, gasUrl, adminToken, adminPassword);
+      await handleGet(request, response, gasUrl, adminToken);
       return;
     }
 
     if (request.method === "POST") {
-      await handlePost(request, response, gasUrl, adminToken, adminPassword);
+      await handlePost(request, response, gasUrl, adminToken);
       return;
     }
 
@@ -51,15 +50,10 @@ export default async function handler(request, response) {
   }
 }
 
-async function handleGet(request, response, gasUrl, adminToken, adminPassword) {
+async function handleGet(request, response, gasUrl, adminToken) {
   const action = getQueryValue(request.query.action) || "publicAnimals";
   if (!ALLOWED_GET_ACTIONS.has(action)) {
     response.status(400).json({ ok: false, error: "Action GET tidak diizinkan." });
-    return;
-  }
-
-  if (action !== "publicAnimals" && !isAdminPasswordValid(request, adminPassword)) {
-    response.status(401).json({ ok: false, error: "Password admin tidak valid." });
     return;
   }
 
@@ -73,22 +67,20 @@ async function handleGet(request, response, gasUrl, adminToken, adminPassword) {
 
   const url = new URL(gasUrl);
   url.searchParams.set("action", action);
-  if (action !== "publicAnimals") url.searchParams.set("adminToken", adminToken);
+  if (action !== "publicAnimals") {
+    url.searchParams.set("adminToken", adminToken);
+    url.searchParams.set("adminPassword", getAdminPassword(request));
+  }
 
   const gasResponse = await fetch(url.toString(), { method: "GET" });
   const payload = await readJson(gasResponse);
   response.status(getResponseStatus(gasResponse, payload)).json(payload);
 }
 
-async function handlePost(request, response, gasUrl, adminToken, adminPassword) {
+async function handlePost(request, response, gasUrl, adminToken) {
   const action = request.body && request.body.action;
   if (!ALLOWED_POST_ACTIONS.has(action)) {
     response.status(400).json({ ok: false, error: "Action POST tidak diizinkan." });
-    return;
-  }
-
-  if (!isAdminPasswordValid(request, adminPassword)) {
-    response.status(401).json({ ok: false, error: "Password admin tidak valid." });
     return;
   }
 
@@ -103,7 +95,7 @@ async function handlePost(request, response, gasUrl, adminToken, adminPassword) 
   const gasResponse = await fetch(gasUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ ...request.body, adminToken }),
+    body: JSON.stringify({ ...request.body, adminToken, adminPassword: getAdminPassword(request) }),
   });
 
   const payload = await readJson(gasResponse);
@@ -132,8 +124,7 @@ function getResponseStatus(fetchResponse, payload) {
   return payload && payload.ok === false ? 400 : 200;
 }
 
-function isAdminPasswordValid(request, expectedPassword) {
-  if (!expectedPassword) return false;
+function getAdminPassword(request) {
   const provided = request.headers["x-admin-password"];
-  return typeof provided === "string" && provided === expectedPassword;
+  return typeof provided === "string" ? provided : "";
 }
