@@ -19,6 +19,7 @@ const ALLOWED_POST_ACTIONS = new Set([
 export default async function handler(request, response) {
   const gasUrl = process.env.GAS_WEB_APP_URL;
   const adminToken = process.env.GAS_ADMIN_TOKEN;
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (!gasUrl) {
     response.status(500).json({
@@ -30,12 +31,12 @@ export default async function handler(request, response) {
 
   try {
     if (request.method === "GET") {
-      await handleGet(request, response, gasUrl, adminToken);
+      await handleGet(request, response, gasUrl, adminToken, adminPassword);
       return;
     }
 
     if (request.method === "POST") {
-      await handlePost(request, response, gasUrl, adminToken);
+      await handlePost(request, response, gasUrl, adminToken, adminPassword);
       return;
     }
 
@@ -50,10 +51,15 @@ export default async function handler(request, response) {
   }
 }
 
-async function handleGet(request, response, gasUrl, adminToken) {
+async function handleGet(request, response, gasUrl, adminToken, adminPassword) {
   const action = getQueryValue(request.query.action) || "publicAnimals";
   if (!ALLOWED_GET_ACTIONS.has(action)) {
     response.status(400).json({ ok: false, error: "Action GET tidak diizinkan." });
+    return;
+  }
+
+  if (action !== "publicAnimals" && !isAdminPasswordValid(request, adminPassword)) {
+    response.status(401).json({ ok: false, error: "Password admin tidak valid." });
     return;
   }
 
@@ -74,10 +80,15 @@ async function handleGet(request, response, gasUrl, adminToken) {
   response.status(getResponseStatus(gasResponse, payload)).json(payload);
 }
 
-async function handlePost(request, response, gasUrl, adminToken) {
+async function handlePost(request, response, gasUrl, adminToken, adminPassword) {
   const action = request.body && request.body.action;
   if (!ALLOWED_POST_ACTIONS.has(action)) {
     response.status(400).json({ ok: false, error: "Action POST tidak diizinkan." });
+    return;
+  }
+
+  if (!isAdminPasswordValid(request, adminPassword)) {
+    response.status(401).json({ ok: false, error: "Password admin tidak valid." });
     return;
   }
 
@@ -119,4 +130,10 @@ function getQueryValue(value) {
 function getResponseStatus(fetchResponse, payload) {
   if (!fetchResponse.ok) return fetchResponse.status;
   return payload && payload.ok === false ? 400 : 200;
+}
+
+function isAdminPasswordValid(request, expectedPassword) {
+  if (!expectedPassword) return false;
+  const provided = request.headers["x-admin-password"];
+  return typeof provided === "string" && provided === expectedPassword;
 }

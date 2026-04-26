@@ -6,7 +6,23 @@
     <title>Manajemen Hewan Qurban</title>
     <link rel="stylesheet" href="styles/main.css" />
   </head>
-  <body>
+  <body class="admin-locked">
+    <dialog id="adminLoginDialog" class="login-dialog">
+      <form class="login-form" id="adminLoginForm" method="dialog">
+        <img src="assets/qurban-mark.svg" alt="" />
+        <div>
+          <p class="eyebrow">Area panitia</p>
+          <h2>Masukkan password admin</h2>
+          <p>Password diperlukan untuk membuka data dan menyimpan perubahan.</p>
+        </div>
+        <label>
+          Password admin
+          <input id="adminPasswordInput" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="login-error" id="adminLoginError" role="alert"></div>
+        <button class="primary-btn" type="submit">Masuk admin</button>
+      </form>
+    </dialog>
     <aside class="sidebar" aria-label="Navigasi aplikasi">
       <div class="brand">
         <img src="assets/qurban-mark.svg" alt="" class="brand-mark" />

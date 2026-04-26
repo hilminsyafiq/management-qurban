@@ -26,6 +26,13 @@ body {
   grid-template-columns: 260px 1fr;
 }
 
+body.admin-locked .sidebar,
+body.admin-locked .app-shell {
+  filter: blur(10px);
+  pointer-events: none;
+  user-select: none;
+}
+
 button,
 input,
 select,
@@ -429,6 +436,36 @@ dialog {
   padding: 0;
   background: var(--panel);
   box-shadow: 0 28px 70px rgba(19, 16, 10, 0.28);
+}
+
+.login-dialog {
+  width: min(430px, calc(100vw - 28px));
+}
+
+.login-form {
+  padding: 28px;
+  display: grid;
+  gap: 16px;
+}
+
+.login-form img {
+  width: 54px;
+  height: 54px;
+}
+
+.login-form h2 {
+  margin-bottom: 6px;
+}
+
+.login-form p {
+  margin-bottom: 0;
+}
+
+.login-error {
+  min-height: 20px;
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 13px;
 }
 
 dialog::backdrop {

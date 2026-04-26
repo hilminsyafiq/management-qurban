@@ -1,4 +1,5 @@
 const STORAGE_KEY = "qurbanops-state-v1";
+const ADMIN_SESSION_KEY = "qurbanops-admin-password";
 const fallbackPhotos = {
   Sapi: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82",
   Kambing: "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82",
@@ -87,6 +88,10 @@ const els = {
   animalForm: document.querySelector("#animalForm"),
   participantForm: document.querySelector("#participantForm"),
   distributionForm: document.querySelector("#distributionForm"),
+  adminLoginDialog: document.querySelector("#adminLoginDialog"),
+  adminLoginForm: document.querySelector("#adminLoginForm"),
+  adminPasswordInput: document.querySelector("#adminPasswordInput"),
+  adminLoginError: document.querySelector("#adminLoginError"),
 };
 
 function loadState() {
@@ -113,12 +118,29 @@ function canUseRemoteApi() {
   return getApiBaseUrl() && location.protocol !== "file:";
 }
 
+function getAdminPassword() {
+  return sessionStorage.getItem(ADMIN_SESSION_KEY) || "";
+}
+
+function setAdminPassword(password) {
+  sessionStorage.setItem(ADMIN_SESSION_KEY, password);
+}
+
+function clearAdminPassword() {
+  sessionStorage.removeItem(ADMIN_SESSION_KEY);
+}
+
+function getAdminHeaders() {
+  const password = getAdminPassword();
+  return password ? { "X-Admin-Password": password } : {};
+}
+
 async function loadRemoteState() {
   if (!canUseRemoteApi()) return false;
 
   try {
     const response = await fetch(`${getApiBaseUrl()}?action=state`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...getAdminHeaders() },
     });
     const data = await response.json();
     if (!response.ok || data.ok === false) throw new Error(data.error || "Gagal memuat data backend.");
@@ -148,6 +170,7 @@ async function syncRemoteState() {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...getAdminHeaders(),
       },
       body: JSON.stringify({
         action: "syncState",
@@ -157,6 +180,46 @@ async function syncRemoteState() {
   } catch (error) {
     // Local data remains available when the backend is temporarily unreachable.
   }
+}
+
+async function verifyAdminPassword(password) {
+  if (!canUseRemoteApi()) return Boolean(password.trim());
+
+  const response = await fetch(`${getApiBaseUrl()}?action=state`, {
+    headers: {
+      Accept: "application/json",
+      "X-Admin-Password": password,
+    },
+  });
+  const data = await response.json();
+  if (!response.ok || data.ok === false) throw new Error(data.error || "Password admin salah.");
+
+  state = {
+    animals: Array.isArray(data.animals) ? data.animals : [],
+    participants: Array.isArray(data.participants) ? data.participants : [],
+    distribution: data.distribution || structuredClone(defaultState.distribution),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  return true;
+}
+
+function unlockAdmin() {
+  document.body.classList.remove("admin-locked");
+  if (els.adminLoginDialog && els.adminLoginDialog.open) els.adminLoginDialog.close();
+}
+
+async function requireAdminLogin() {
+  if (!els.adminLoginDialog) return;
+  if (getAdminPassword()) {
+    try {
+      await verifyAdminPassword(getAdminPassword());
+      unlockAdmin();
+      return;
+    } catch {
+      clearAdminPassword();
+    }
+  }
+  els.adminLoginDialog.showModal();
 }
 
 function money(value) {
@@ -547,6 +610,20 @@ document.querySelector("#resetDemoBtn").addEventListener("click", () => {
   state = structuredClone(defaultState);
   render();
 });
+els.adminLoginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  els.adminLoginError.textContent = "";
+  const password = els.adminPasswordInput.value;
+
+  try {
+    await verifyAdminPassword(password);
+    setAdminPassword(password);
+    unlockAdmin();
+    render();
+  } catch (error) {
+    els.adminLoginError.textContent = error.message || "Password admin salah.";
+  }
+});
 
 els.statusFilter.addEventListener("change", renderAnimalBoard);
 els.animalForm.elements.type.addEventListener("change", (event) => {
@@ -586,7 +663,7 @@ document.addEventListener("click", (event) => {
 });
 
 async function bootstrap() {
-  await loadRemoteState();
+  await requireAdminLogin();
   render();
 }
 
