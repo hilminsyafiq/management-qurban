@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manajemen Hewan Qurban</title>
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <aside class="sidebar" aria-label="Navigasi aplikasi">
+      <div class="brand">
+        <img src="assets/qurban-mark.svg" alt="" class="brand-mark" />
+        <div>
+          <strong>QurbanOps</strong>
+          <span>Panitia Idul Adha</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="overview" type="button">Ringkasan</button>
+        <button class="nav-item" data-view="animals" type="button">Hewan</button>
+        <button class="nav-item" data-view="participants" type="button">Peserta</button>
+        <button class="nav-item" data-view="distribution" type="button">Distribusi</button>
+        <a class="nav-link" href="index.html">Website hewan</a>
+      </nav>
+
+      <div class="sidebar-note">
+        <span>Data tersimpan otomatis di browser perangkat ini.</span>
+      </div>
+    </aside>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Operasional qurban</p>
+          <h1>Manajemen hewan qurban</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-btn" id="resetDemoBtn" type="button">Reset demo</button>
+          <button class="primary-btn" id="openAnimalFormBtn" type="button">Tambah hewan</button>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="Ringkasan data">
+        <article class="metric">
+          <span>Total hewan</span>
+          <strong id="totalAnimals">0</strong>
+        </article>
+        <article class="metric">
+          <span>Kuota terisi</span>
+          <strong id="filledShares">0/0</strong>
+        </article>
+        <article class="metric">
+          <span>Dana terkumpul</span>
+          <strong id="paidAmount">Rp0</strong>
+        </article>
+        <article class="metric">
+          <span>Paket daging</span>
+          <strong id="packageTotal">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <div class="workspace-main">
+          <div class="view-panel active" id="overviewView">
+            <div class="section-head">
+              <div>
+                <h2>Status pelaksanaan</h2>
+                <p>Daftar hewan, kuota peserta, dan kesiapan sembelih.</p>
+              </div>
+              <select id="statusFilter" aria-label="Filter status">
+                <option value="all">Semua status</option>
+                <option value="booking">Booking</option>
+                <option value="paid">Lunas</option>
+                <option value="slaughtered">Disembelih</option>
+                <option value="distributed">Distribusi</option>
+              </select>
+            </div>
+            <div id="animalBoard" class="animal-board"></div>
+          </div>
+
+          <div class="view-panel" id="animalsView">
+            <div class="section-head">
+              <div>
+                <h2>Data hewan</h2>
+                <p>Kelola jenis, bobot, harga, jadwal, dan status hewan.</p>
+              </div>
+              <button class="primary-btn" id="openAnimalFormBtn2" type="button">Tambah hewan</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kode</th>
+                    <th>Jenis</th>
+                    <th>Bobot</th>
+                    <th>Harga</th>
+                    <th>Kuota</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="animalsTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="participantsView">
+            <div class="section-head">
+              <div>
+                <h2>Peserta qurban</h2>
+                <p>Pencatatan shohibul qurban, hewan yang dipilih, dan pembayaran.</p>
+              </div>
+              <button class="primary-btn" id="openParticipantFormBtn" type="button">Tambah peserta</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>Telepon</th>
+                    <th>Hewan</th>
+                    <th>Iuran</th>
+                    <th>Dibayar</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="participantsTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="view-panel" id="distributionView">
+            <div class="section-head">
+              <div>
+                <h2>Distribusi daging</h2>
+                <p>Atur jumlah paket warga, mustahik, panitia, dan peserta.</p>
+              </div>
+              <button class="primary-btn" id="saveDistributionBtn" type="button">Simpan distribusi</button>
+            </div>
+            <form class="distribution-grid" id="distributionForm">
+              <label>
+                Paket warga
+                <input name="warga" min="0" type="number" />
+              </label>
+              <label>
+                Paket mustahik
+                <input name="mustahik" min="0" type="number" />
+              </label>
+              <label>
+                Paket panitia
+                <input name="panitia" min="0" type="number" />
+              </label>
+              <label>
+                Paket peserta
+                <input name="peserta" min="0" type="number" />
+              </label>
+              <label class="wide">
+                Catatan distribusi
+                <textarea name="notes" rows="4"></textarea>
+              </label>
+            </form>
+          </div>
+        </div>
+
+        <aside class="inspector">
+          <h2>Validasi panitia</h2>
+          <div id="validationList" class="validation-list"></div>
+        </aside>
+      </section>
+    </main>
+
+    <dialog id="animalDialog">
+      <form method="dialog" class="dialog-form" id="animalForm">
+        <div class="dialog-head">
+          <h2 id="animalDialogTitle">Tambah hewan</h2>
+          <button value="cancel" class="icon-btn" type="submit" formnovalidate aria-label="Tutup">x</button>
+        </div>
+        <input type="hidden" name="id" />
+        <label>Kode hewan <input name="code" required maxlength="12" /></label>
+        <label>Jenis
+          <select name="type" required>
+            <option value="Sapi">Sapi</option>
+            <option value="Kambing">Kambing</option>
+            <option value="Domba">Domba</option>
+          </select>
+        </label>
+        <label>Bobot kg <input name="weight" required min="1" type="number" /></label>
+        <label>Harga beli <input name="price" required min="0" type="number" /></label>
+        <label>Biaya operasional <input name="cost" required min="0" type="number" /></label>
+        <label>Jadwal sembelih <input name="schedule" type="datetime-local" /></label>
+        <label>URL foto hewan <input name="photoUrl" type="url" placeholder="https://..." /></label>
+        <label>Status
+          <select name="status">
+            <option value="booking">Booking</option>
+            <option value="paid">Lunas</option>
+            <option value="slaughtered">Disembelih</option>
+            <option value="distributed">Distribusi</option>
+          </select>
+        </label>
+        <div class="dialog-actions">
+          <button class="ghost-btn" value="cancel" type="submit" formnovalidate>Batal</button>
+          <button class="primary-btn" value="default" id="saveAnimalBtn" type="button">Simpan</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="participantDialog">
+      <form method="dialog" class="dialog-form" id="participantForm">
+        <div class="dialog-head">
+          <h2 id="participantDialogTitle">Tambah peserta</h2>
+          <button value="cancel" class="icon-btn" type="submit" formnovalidate aria-label="Tutup">x</button>
+        </div>
+        <input type="hidden" name="id" />
+        <label>Nama peserta <input name="name" required /></label>
+        <label>Telepon <input name="phone" required /></label>
+        <label>Pilih hewan <select name="animalId" required></select></label>
+        <label>Iuran wajib <input name="due" required min="0" type="number" /></label>
+        <label>Sudah dibayar <input name="paid" required min="0" type="number" /></label>
+        <div class="dialog-actions">
+          <button class="ghost-btn" value="cancel" type="submit" formnovalidate>Batal</button>
+          <button class="primary-btn" value="default" id="saveParticipantBtn" type="button">Simpan</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="src/config.js"></script>
+    <script src="src/app.js"></script>
+  </body>
+</html>
