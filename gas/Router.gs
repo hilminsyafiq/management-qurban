@@ -143,15 +143,16 @@ function syncState(payload, baseVersion) {
   const participants = payload.participants || [];
   const distribution = payload.distribution || {};
   const modules = payload.modules || {};
+  const syncedDistributionModules = syncDistributionRecipientsPayload(distribution, modules);
   const nextMeta = payload.meta || {};
   nextMeta.version = Math.max(currentVersion, incomingVersion) || 1;
   nextMeta.updatedAt = toUtcIso(nextMeta.updatedAt) || getNowIso();
-  modules.meta = nextMeta;
+  syncedDistributionModules.modules.meta = nextMeta;
 
   writeRows(APP_CONFIG.sheets.animals, APP_CONFIG.headers.animals, animals.map(validateAnimal));
   writeRows(APP_CONFIG.sheets.participants, APP_CONFIG.headers.participants, participants.map(validateParticipant));
-  saveDistribution(distribution);
-  saveModules(modules);
+  saveDistribution(syncedDistributionModules.distribution);
+  saveModules(syncedDistributionModules.modules);
 
   return getFullState();
 }

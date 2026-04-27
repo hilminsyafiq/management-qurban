@@ -337,6 +337,100 @@ function field(name, label, options = {}) {
   };
 }
 
+function normalizeRecipientKey(name, category) {
+  return `${String(name || "").trim().toLowerCase()}|${String(category || "").trim().toLowerCase()}`;
+}
+
+function moduleRecipientFromTarget(target) {
+  return {
+    name: String(target.destination || "").trim(),
+    category: target.category || "Warga",
+    bags: String(Number(target.bags || 0)),
+    status: target.status || "Belum diproses",
+  };
+}
+
+function upsertDistributionTargetFromModuleRecipient(record, previousRecord = null) {
+  state.distribution = state.distribution || structuredClone(defaultState.distribution);
+  state.distribution.targets = Array.isArray(state.distribution.targets) ? state.distribution.targets : [];
+  const nextName = String(record.name || "").trim();
+  if (!nextName) return;
+
+  const previousKey = previousRecord ? normalizeRecipientKey(previousRecord.name, previousRecord.category) : "";
+  const nextKey = normalizeRecipientKey(record.name, record.category);
+  const target = state.distribution.targets.find((item) => {
+    const itemKey = normalizeRecipientKey(item.destination, item.category);
+    return itemKey === previousKey || itemKey === nextKey;
+  });
+  const nextTarget = {
+    destination: nextName,
+    category: record.category || "Warga",
+    bags: Number(record.bags || 0),
+    status: record.status || "Belum diproses",
+  };
+
+  if (target) {
+    Object.assign(target, nextTarget);
+    target.recipients = Array.isArray(target.recipients) ? target.recipients : [];
+    return;
+  }
+
+  state.distribution.targets.push({ ...nextTarget, pic: "", recipients: [] });
+}
+
+function removeDistributionTargetFromModuleRecipient(record) {
+  if (!record || !state.distribution || !Array.isArray(state.distribution.targets)) return;
+  const key = normalizeRecipientKey(record.name, record.category);
+  state.distribution.targets = state.distribution.targets.filter((target) => normalizeRecipientKey(target.destination, target.category) !== key);
+}
+
+function syncDistributionRecipientsModule() {
+  state.distribution = state.distribution || structuredClone(defaultState.distribution);
+  state.distribution.targets = Array.isArray(state.distribution.targets) ? state.distribution.targets : [];
+  state.modules = state.modules || structuredClone(defaultState.modules);
+  state.modules.recipients = Array.isArray(state.modules.recipients) ? state.modules.recipients : [];
+
+  const targetKeys = new Set(state.distribution.targets.map((target) => normalizeRecipientKey(target.destination, target.category)));
+  state.modules.recipients.forEach((recipient) => {
+    const key = normalizeRecipientKey(recipient.name, recipient.category);
+    if (!recipient.name || targetKeys.has(key)) return;
+    state.distribution.targets.push({
+      destination: String(recipient.name || "").trim(),
+      category: recipient.category || "Warga",
+      bags: Number(recipient.bags || 0),
+      pic: "",
+      status: recipient.status || "Belum diproses",
+      recipients: [],
+    });
+    targetKeys.add(key);
+  });
+
+  const mergedTargets = new Map();
+  state.distribution.targets.forEach((target) => {
+    const normalized = {
+      ...target,
+      destination: String(target.destination || "").trim(),
+      category: target.category || "Warga",
+      bags: Number(target.bags || 0),
+      status: target.status || "Belum diproses",
+      recipients: Array.isArray(target.recipients) ? target.recipients : [],
+    };
+    if (!normalized.destination) return;
+    const key = normalizeRecipientKey(normalized.destination, normalized.category);
+    if (!mergedTargets.has(key)) {
+      mergedTargets.set(key, normalized);
+      return;
+    }
+    const existing = mergedTargets.get(key);
+    existing.bags = Number(existing.bags || 0) || Number(normalized.bags || 0);
+    existing.pic = existing.pic || normalized.pic || "";
+    existing.status = existing.status || normalized.status;
+    existing.recipients = [...existing.recipients, ...normalized.recipients];
+  });
+  state.distribution.targets = [...mergedTargets.values()];
+  state.modules.recipients = state.distribution.targets.map(moduleRecipientFromTarget);
+}
+
 function ensureOpsShape() {
   ensureModuleShape();
   const defaults = defaultState.modules;
@@ -352,6 +446,7 @@ function ensureOpsShape() {
     password: user.password || `${normalizeRole(user.role || "panitia")}123`,
     status: user.status || "Aktif",
   }));
+  syncDistributionRecipientsModule();
 }
 
 function loadState() {
@@ -1402,16 +1497,26 @@ function addDistributionTarget() {
   if (!form.reportValidity()) return;
   const data = Object.fromEntries(new FormData(form));
   state.distribution.targets = state.distribution.targets || [];
-  state.distribution.targets.push({
-    destination: data.destination.trim(),
-    category: data.category,
-    bags: Number(data.bags || 0),
-    pic: data.pic.trim(),
-    status: data.status,
-    recipients: [],
-  });
+  const destination = data.destination.trim();
+  const existingTarget = state.distribution.targets.find((target) => normalizeRecipientKey(target.destination, target.category) === normalizeRecipientKey(destination, data.category));
+  if (existingTarget) {
+    existingTarget.bags = Number(data.bags || 0);
+    existingTarget.pic = data.pic.trim();
+    existingTarget.status = data.status;
+    existingTarget.recipients = Array.isArray(existingTarget.recipients) ? existingTarget.recipients : [];
+  } else {
+    state.distribution.targets.push({
+      destination,
+      category: data.category,
+      bags: Number(data.bags || 0),
+      pic: data.pic.trim(),
+      status: data.status,
+      recipients: [],
+    });
+  }
+  syncDistributionRecipientsModule();
   form.reset();
-  markDataChange("Tambah tujuan distribusi", data.destination.trim());
+  markDataChange(existingTarget ? "Update tujuan distribusi" : "Tambah tujuan distribusi", destination);
   render();
 }
 
@@ -1431,6 +1536,7 @@ function addDistributionRecipient() {
     bags: Number(data.bags || 0),
     status: data.status,
   });
+  syncDistributionRecipientsModule();
   form.reset();
   markDataChange("Tambah penerima distribusi", `${data.name.trim()} - ${target.destination}`);
   render();
@@ -1442,6 +1548,7 @@ function deleteDistributionRecipient(targetIndex, recipientIndex) {
   if (!window.confirm("Hapus penerima ini dari daftar distribusi?")) return;
   const removed = target.recipients[recipientIndex];
   target.recipients.splice(recipientIndex, 1);
+  syncDistributionRecipientsModule();
   markDataChange("Hapus penerima distribusi", removed ? removed.name : `Index ${recipientIndex}`);
   render();
 }
@@ -1451,6 +1558,11 @@ function deleteDistributionTarget(index) {
   if (!window.confirm("Hapus tujuan distribusi ini beserta penerima di bawahnya?")) return;
   const removed = state.distribution.targets[index];
   state.distribution.targets.splice(index, 1);
+  if (removed && state.modules && Array.isArray(state.modules.recipients)) {
+    const removedKey = normalizeRecipientKey(removed.destination, removed.category);
+    state.modules.recipients = state.modules.recipients.filter((recipient) => normalizeRecipientKey(recipient.name, recipient.category) !== removedKey);
+  }
+  syncDistributionRecipientsModule();
   markDataChange("Hapus tujuan distribusi", removed ? removed.destination : `Index ${index}`);
   render();
 }
@@ -1778,11 +1890,13 @@ function addModuleRecord(moduleKey) {
     return;
   }
   if (Number.isInteger(editIndex) && editIndex >= 0 && state.modules[moduleKey][editIndex]) {
+    const previousRecord = state.modules[moduleKey][editIndex];
     state.modules[moduleKey][editIndex] = record;
+    applyModuleRecordSideEffects(moduleKey, record, previousRecord);
   } else {
     state.modules[moduleKey].push(record);
+    applyModuleRecordSideEffects(moduleKey, record);
   }
-  applyModuleRecordSideEffects(moduleKey, record);
   markDataChange(
     Number.isInteger(editIndex) && editIndex >= 0 ? "Update data modul" : "Tambah data modul",
     `${moduleConfigs[moduleKey].title}: ${Object.values(record).find(Boolean) || "record baru"}`,
@@ -1800,13 +1914,20 @@ function isDuplicateModuleRecord(moduleKey, record, editIndex = -1) {
   });
 }
 
-function applyModuleRecordSideEffects(moduleKey, record) {
-  if (moduleKey !== "meatYield") return;
-  const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
-  if (!animal) return;
-  animal.carcassWeight = Number(record.carcassWeight || animal.carcassWeight || 0);
-  if (animal.status === "booking" || animal.status === "paid") {
-    animal.status = "slaughtered";
+function applyModuleRecordSideEffects(moduleKey, record, previousRecord = null) {
+  if (moduleKey === "recipients") {
+    upsertDistributionTargetFromModuleRecipient(record, previousRecord);
+    syncDistributionRecipientsModule();
+    return;
+  }
+
+  if (moduleKey === "meatYield") {
+    const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
+    if (!animal) return;
+    animal.carcassWeight = Number(record.carcassWeight || animal.carcassWeight || 0);
+    if (animal.status === "booking" || animal.status === "paid") {
+      animal.status = "slaughtered";
+    }
   }
 }
 
@@ -1830,6 +1951,10 @@ function deleteModuleRecord(moduleKey, index) {
   ensureModuleShape();
   const removed = state.modules[moduleKey][index];
   state.modules[moduleKey].splice(index, 1);
+  if (moduleKey === "recipients") {
+    removeDistributionTargetFromModuleRecipient(removed);
+    syncDistributionRecipientsModule();
+  }
   markDataChange("Hapus data modul", `${moduleConfigs[moduleKey].title}: ${removed ? Object.values(removed).find(Boolean) : index}`);
   render();
 }
