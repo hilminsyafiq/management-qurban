@@ -9,6 +9,11 @@ function getAnimal(id) {
 function saveAnimal(payload) {
   const animal = validateAnimal(payload || {});
   const id = animal.id || Utilities.getUuid();
+  const duplicateCode = listAnimals().some((item) => {
+    return String(item.id) !== String(id)
+      && String(item.code || "").trim().toUpperCase() === String(animal.code || "").trim().toUpperCase();
+  });
+  if (duplicateCode) throw new Error("Kode hewan sudah dipakai.");
   return normalizeAnimal(upsertRow(APP_CONFIG.sheets.animals, APP_CONFIG.headers.animals, id, animal));
 }
 

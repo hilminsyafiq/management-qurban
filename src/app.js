@@ -257,7 +257,7 @@ const moduleConfigs = {
     description: "Riwayat setoran tabungan kurban.",
     fields: [
       field("date", "Tanggal", { type: "date" }),
-      field("saver", "Penabung"),
+      field("saver", "Penabung", { type: "select", source: "savers" }),
       field("amount", "Nominal", { type: "number" }),
       field("method", "Metode", { type: "select", options: ["Transfer", "Tunai", "QRIS"] }),
       field("note", "Catatan"),
@@ -298,7 +298,7 @@ const moduleConfigs = {
     title: "Perolehan daging",
     description: "Hasil sembelihan dan jumlah kantung.",
     fields: [
-      field("animalCode", "Kode hewan"),
+      field("animalCode", "Kode hewan", { type: "select", source: "animals" }),
       field("carcassWeight", "Bobot karkas", { type: "number", step: "0.1" }),
       field("bags", "Kantung", { type: "number" }),
       field("note", "Catatan"),
@@ -327,7 +327,14 @@ const moduleConfigs = {
 };
 
 function field(name, label, options = {}) {
-  return { name, label, type: options.type || "text", options: options.options || [], step: options.step || "" };
+  return {
+    name,
+    label,
+    type: options.type || "text",
+    options: options.options || [],
+    source: options.source || "",
+    step: options.step || "",
+  };
 }
 
 function ensureOpsShape() {
@@ -683,6 +690,10 @@ function participantsFor(animalId) {
   return state.participants.filter((participant) => participant.animalId === animalId);
 }
 
+function normalizeDuplicateValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function render() {
   ensureOpsShape();
   applyRoleAccess();
@@ -818,7 +829,12 @@ function renderUsersTable() {
       <td>${escapeHtml(user.role)}</td>
       <td>${escapeHtml(user.phone || "-")}</td>
       <td><span class="badge ${user.status === "Nonaktif" ? "danger" : ""}">${escapeHtml(user.status)}</span></td>
-      <td><button class="link-btn danger" data-delete-user="${escapeHtml(user.id)}" type="button">Hapus</button></td>
+      <td>
+        <div class="row-actions">
+          <button class="link-btn" data-edit-user="${escapeHtml(user.id)}" type="button">Edit</button>
+          <button class="link-btn danger" data-delete-user="${escapeHtml(user.id)}" type="button">Hapus</button>
+        </div>
+      </td>
     </tr>
   `).join("") : '<tr><td colspan="6">Belum ada user.</td></tr>';
 }
@@ -1142,7 +1158,7 @@ function openAnimalForm(animalId) {
   } else {
     form.elements.id.value = "";
     form.elements.status.value = "booking";
-    form.elements.code.value = nextAnimalCode();
+    form.elements.code.value = nextAnimalCode(form.elements.type.value);
     form.elements.brightEyes.checked = true;
     form.elements.healthyCoat.checked = true;
     form.elements.noDefect.checked = true;
@@ -1182,7 +1198,7 @@ async function saveAnimal() {
   if (!form.reportValidity()) return;
 
   const data = Object.fromEntries(new FormData(form));
-  const normalizedCode = data.code.trim().toUpperCase();
+  const normalizedCode = (data.code.trim() || nextAnimalCode(data.type)).toUpperCase();
   const duplicateCode = state.animals.some((animal) => animal.id !== data.id && String(animal.code || "").toUpperCase() === normalizedCode);
   if (duplicateCode) {
     form.elements.code.setCustomValidity("Kode hewan sudah dipakai. Gunakan kode lain.");
@@ -1259,6 +1275,28 @@ function saveParticipant() {
 
   const data = Object.fromEntries(new FormData(form));
   const animal = state.animals.find((item) => item.id === data.animalId);
+  const duplicateToken = state.participants.some((participant) => {
+    return String(participant.id) !== String(data.id || "")
+      && normalizeDuplicateValue(participant.token) === normalizeDuplicateValue(data.token);
+  });
+  if (duplicateToken) {
+    form.elements.token.setCustomValidity("Nomor invoice/token sudah dipakai.");
+    form.elements.token.reportValidity();
+    form.elements.token.setCustomValidity("");
+    return;
+  }
+  const duplicateParticipant = state.participants.some((participant) => {
+    return String(participant.id) !== String(data.id || "")
+      && normalizeDuplicateValue(participant.name) === normalizeDuplicateValue(data.name)
+      && normalizeDuplicateValue(participant.phone) === normalizeDuplicateValue(data.phone)
+      && String(participant.animalId) === String(data.animalId);
+  });
+  if (duplicateParticipant) {
+    form.elements.name.setCustomValidity("Peserta ini sudah terdaftar pada hewan yang sama.");
+    form.elements.name.reportValidity();
+    form.elements.name.setCustomValidity("");
+    return;
+  }
   const existingShares = usedShareUnits(data.animalId, data.id);
   const requestedShares = packageShareUnits(data.packageType, animal);
 
@@ -1436,7 +1474,12 @@ function renderModulesForm() {
     const tableRows = rows.length ? rows.map((row, index) => `
       <tr>
         ${config.fields.map((moduleField) => `<td>${escapeHtml(row[moduleField.name] || "-")}</td>`).join("")}
-        <td><button class="link-btn danger" data-module-delete="${escapeHtml(key)}" data-module-index="${index}" type="button">Hapus</button></td>
+        <td>
+          <div class="row-actions">
+            <button class="link-btn" data-module-edit="${escapeHtml(key)}" data-module-index="${index}" type="button">Edit</button>
+            <button class="link-btn danger" data-module-delete="${escapeHtml(key)}" data-module-index="${index}" type="button">Hapus</button>
+          </div>
+        </td>
       </tr>
     `).join("") : `<tr><td colspan="${config.fields.length + 1}">Belum ada data.</td></tr>`;
 
@@ -1450,6 +1493,7 @@ function renderModulesForm() {
           <button class="primary-btn" data-module-add="${escapeHtml(key)}" type="button">Tambah</button>
         </div>
         <form class="module-entry-form" data-module-form="${escapeHtml(key)}">
+          <input name="__editIndex" type="hidden" value="" />
           ${fields}
         </form>
         <div class="table-wrap">
@@ -1477,10 +1521,12 @@ function renderModulesForm() {
 
 function renderModuleFieldControl(moduleField) {
   if (moduleField.type === "select") {
+    const options = getModuleFieldOptions(moduleField);
+    const placeholder = moduleField.source === "savers" && !options.length ? "Tambah penabung dulu" : `Pilih ${moduleField.label}`;
     return `
       <select name="${escapeHtml(moduleField.name)}" data-module-field="${escapeHtml(moduleField.name)}" required>
-        <option value="">Pilih ${escapeHtml(moduleField.label)}</option>
-        ${moduleField.options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+        <option value="">${escapeHtml(placeholder)}</option>
+        ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
       </select>
     `;
   }
@@ -1489,6 +1535,20 @@ function renderModuleFieldControl(moduleField) {
   const numericAttrs = moduleField.type === "number" ? ` min="0" max="999999999" inputmode="numeric"` : "";
   const textAttrs = moduleField.type === "text" || moduleField.type === "tel" ? ` maxlength="100"` : "";
   return `<input name="${escapeHtml(moduleField.name)}" type="${escapeHtml(moduleField.type)}"${step}${numericAttrs}${textAttrs} data-module-field="${escapeHtml(moduleField.name)}" required />`;
+}
+
+function getModuleFieldOptions(moduleField) {
+  if (moduleField.source === "savers") {
+    return (state.modules.savers || [])
+      .map((saver) => saver.name)
+      .filter(Boolean);
+  }
+  if (moduleField.source === "animals") {
+    return (state.animals || [])
+      .map((animal) => animal.code)
+      .filter(Boolean);
+  }
+  return moduleField.options || [];
 }
 
 function saveModules() {
@@ -1700,6 +1760,7 @@ function addModuleRecord(moduleKey) {
   const form = document.querySelector(`[data-module-form="${moduleKey}"]`);
   if (!config || !form) return;
   if (!form.reportValidity()) return;
+  const editIndex = form.elements.__editIndex ? Number(form.elements.__editIndex.value) : -1;
 
   const record = {};
   config.fields.forEach((moduleField) => {
@@ -1712,9 +1773,56 @@ function addModuleRecord(moduleKey) {
   }
 
   ensureModuleShape();
-  state.modules[moduleKey].push(record);
-  markDataChange("Tambah data modul", `${moduleConfigs[moduleKey].title}: ${Object.values(record).find(Boolean) || "record baru"}`);
+  if (isDuplicateModuleRecord(moduleKey, record, editIndex)) {
+    alert("Data yang sama sudah ada di modul ini.");
+    return;
+  }
+  if (Number.isInteger(editIndex) && editIndex >= 0 && state.modules[moduleKey][editIndex]) {
+    state.modules[moduleKey][editIndex] = record;
+  } else {
+    state.modules[moduleKey].push(record);
+  }
+  applyModuleRecordSideEffects(moduleKey, record);
+  markDataChange(
+    Number.isInteger(editIndex) && editIndex >= 0 ? "Update data modul" : "Tambah data modul",
+    `${moduleConfigs[moduleKey].title}: ${Object.values(record).find(Boolean) || "record baru"}`,
+  );
   render();
+}
+
+function isDuplicateModuleRecord(moduleKey, record, editIndex = -1) {
+  const config = moduleConfigs[moduleKey];
+  if (!config) return false;
+  const fields = config.fields.map((moduleField) => moduleField.name);
+  return (state.modules[moduleKey] || []).some((item, index) => {
+    if (index === editIndex) return false;
+    return fields.every((fieldName) => normalizeDuplicateValue(item[fieldName]) === normalizeDuplicateValue(record[fieldName]));
+  });
+}
+
+function applyModuleRecordSideEffects(moduleKey, record) {
+  if (moduleKey !== "meatYield") return;
+  const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
+  if (!animal) return;
+  animal.carcassWeight = Number(record.carcassWeight || animal.carcassWeight || 0);
+  if (animal.status === "booking" || animal.status === "paid") {
+    animal.status = "slaughtered";
+  }
+}
+
+function editModuleRecord(moduleKey, index) {
+  const config = moduleConfigs[moduleKey];
+  const form = document.querySelector(`[data-module-form="${moduleKey}"]`);
+  const record = state.modules[moduleKey] && state.modules[moduleKey][index];
+  if (!config || !form || !record) return;
+  activateModuleTab(moduleKey);
+  if (form.elements.__editIndex) form.elements.__editIndex.value = String(index);
+  config.fields.forEach((moduleField) => {
+    if (form.elements[moduleField.name]) form.elements[moduleField.name].value = record[moduleField.name] || "";
+  });
+  const addButton = document.querySelector(`[data-module-add="${moduleKey}"]`);
+  if (addButton) addButton.textContent = "Simpan";
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function deleteModuleRecord(moduleKey, index) {
@@ -1754,9 +1862,19 @@ function setParticipantValidation(participantId, bookingStatus) {
   render();
 }
 
-function nextAnimalCode() {
-  const number = String(state.animals.length + 1).padStart(2, "0");
-  return `SP-${number}`;
+function animalCodePrefix(type) {
+  if (type === "Kambing") return "KG";
+  if (type === "Domba") return "DM";
+  return "SP";
+}
+
+function nextAnimalCode(type = "Sapi") {
+  const prefix = animalCodePrefix(type);
+  const nextNumber = state.animals.reduce((max, animal) => {
+    const match = String(animal.code || "").toUpperCase().match(new RegExp(`^${prefix}-(\\d+)$`));
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `${prefix}-${String(nextNumber).padStart(2, "0")}`;
 }
 
 function nextParticipantToken() {
@@ -1814,25 +1932,50 @@ function addArea() {
 function addUser() {
   if (!els.userForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.userForm));
-  const duplicateUser = state.modules.users.some((user) => String(user.username || "").trim().toLowerCase() === data.username.trim().toLowerCase());
+  const userId = data.id || "";
+  const duplicateUser = state.modules.users.some((user) => {
+    return String(user.id) !== String(userId)
+      && String(user.username || "").trim().toLowerCase() === data.username.trim().toLowerCase();
+  });
   if (duplicateUser) {
     els.userForm.elements.username.setCustomValidity("Username sudah dipakai.");
     els.userForm.elements.username.reportValidity();
     els.userForm.elements.username.setCustomValidity("");
     return;
   }
-  state.modules.users.push({
-    id: crypto.randomUUID(),
+  const user = {
+    id: userId || crypto.randomUUID(),
     name: data.name.trim(),
     username: data.username.trim(),
     password: data.password,
     role: data.role,
     phone: data.phone.trim(),
     status: data.status,
-  });
+  };
+  const index = state.modules.users.findIndex((item) => item.id === user.id);
+  if (index >= 0) state.modules.users[index] = user;
+  else state.modules.users.push(user);
   els.userForm.reset();
-  markDataChange("Tambah user", `${data.username.trim()} - ${data.role}`);
+  if (els.userForm.elements.id) els.userForm.elements.id.value = "";
+  const addUserBtn = document.querySelector("#addUserBtn");
+  if (addUserBtn) addUserBtn.textContent = "Tambah user";
+  markDataChange(index >= 0 ? "Update user" : "Tambah user", `${data.username.trim()} - ${data.role}`);
   render();
+}
+
+function editUser(userId) {
+  const user = state.modules.users.find((item) => item.id === userId);
+  if (!user) return;
+  els.userForm.elements.id.value = user.id;
+  els.userForm.elements.name.value = user.name || "";
+  els.userForm.elements.username.value = user.username || "";
+  els.userForm.elements.password.value = user.password || "";
+  els.userForm.elements.role.value = user.role || "Panitia";
+  els.userForm.elements.phone.value = user.phone || "";
+  els.userForm.elements.status.value = user.status || "Aktif";
+  const addUserBtn = document.querySelector("#addUserBtn");
+  if (addUserBtn) addUserBtn.textContent = "Simpan user";
+  els.userForm.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function nextCouponCode() {
@@ -1844,9 +1987,10 @@ function nextCouponCode() {
 }
 
 function createCoupon({ recipientName = "", areaId = "", category = "Umum", source = "manual" }) {
+  const code = nextCouponCode();
   return {
     id: crypto.randomUUID(),
-    code: nextCouponCode(),
+    code,
     recipientName,
     areaId,
     category,
@@ -1874,6 +2018,15 @@ function generateCoupons() {
 
 function addGeneralCoupon() {
   const data = Object.fromEntries(new FormData(els.couponGenerateForm));
+  const duplicateCoupon = state.modules.coupons.some((coupon) => {
+    return normalizeDuplicateValue(coupon.recipientName || "Kupon umum") === normalizeDuplicateValue(data.recipientName || "Kupon umum")
+      && String(coupon.areaId || "") === String(data.areaId || "")
+      && String(coupon.category || "") === "Umum";
+  });
+  if (duplicateCoupon) {
+    alert("Kupon umum dengan penerima dan wilayah yang sama sudah ada.");
+    return;
+  }
   state.modules.coupons.push(createCoupon({
     recipientName: data.recipientName.trim(),
     areaId: data.areaId,
@@ -2357,7 +2510,6 @@ function activateModuleTab(moduleKey) {
   document.querySelectorAll("[data-module]").forEach((card) => card.classList.toggle("active", card.dataset.module === moduleKey));
 }
 
-document.querySelector("#openAnimalFormBtn").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openAnimalFormBtn2").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openParticipantFormBtn").addEventListener("click", () => openParticipantForm());
 document.querySelector("#printParticipantCardsBtn").addEventListener("click", () => printParticipantCards());
@@ -2389,12 +2541,6 @@ document.querySelector("#downloadCouponsReportBtn").addEventListener("click", do
 document.querySelector("#printDistributionReportBtn").addEventListener("click", printDistributionReport);
 document.querySelector("#exportAuditLogBtn").addEventListener("click", exportAuditLog);
 document.querySelector("#saveProfileBtn").addEventListener("click", saveProfile);
-document.querySelector("#resetDemoBtn").addEventListener("click", () => {
-  if (!window.confirm("Reset seluruh data demo? Data lokal yang sudah diubah akan diganti dengan data contoh.")) return;
-  state = structuredClone(defaultState);
-  markDataChange("Reset demo", "Seluruh data lokal diganti dengan data contoh.");
-  render();
-});
 if (els.couponImportFile) {
   els.couponImportFile.addEventListener("change", async (event) => {
     try {
@@ -2445,6 +2591,11 @@ els.participantForm.elements.packageType.addEventListener("change", () => {
     els.participantForm.elements.packageType.value,
   );
 });
+els.animalForm.elements.type.addEventListener("change", () => {
+  if (!els.animalForm.elements.id.value) {
+    els.animalForm.elements.code.value = nextAnimalCode(els.animalForm.elements.type.value);
+  }
+});
 els.roleButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveRole(button.dataset.roleSwitch));
 });
@@ -2475,12 +2626,14 @@ document.addEventListener("click", (event) => {
   const validateParticipantId = event.target.dataset.validateParticipant;
   const rejectParticipantId = event.target.dataset.rejectParticipant;
   const moduleAdd = event.target.dataset.moduleAdd;
+  const moduleEdit = event.target.dataset.moduleEdit;
   const moduleDelete = event.target.dataset.moduleDelete;
   const moduleIndex = event.target.dataset.moduleIndex;
   const deleteDistributionTargetIndex = event.target.dataset.deleteDistributionTarget;
   const deleteDistributionRecipientTarget = event.target.dataset.deleteDistributionRecipient;
   const deleteDistributionRecipientIndex = event.target.dataset.recipientIndex;
   const deleteAreaId = event.target.dataset.deleteArea;
+  const editUserId = event.target.dataset.editUser;
   const deleteUserId = event.target.dataset.deleteUser;
   const deleteCouponId = event.target.dataset.deleteCoupon;
   const printCouponId = event.target.dataset.printCoupon;
@@ -2493,7 +2646,9 @@ document.addEventListener("click", (event) => {
   if (printParticipantId) printParticipantCards([printParticipantId]);
   if (printCouponId) printCouponTemplates([printCouponId]);
   if (deleteParticipantId) deleteParticipant(deleteParticipantId);
+  if (editUserId) editUser(editUserId);
   if (moduleAdd) addModuleRecord(moduleAdd);
+  if (moduleEdit) editModuleRecord(moduleEdit, Number(moduleIndex));
   if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));
   if (deleteDistributionTargetIndex !== undefined) deleteDistributionTarget(Number(deleteDistributionTargetIndex));
   if (deleteDistributionRecipientTarget !== undefined) deleteDistributionRecipient(Number(deleteDistributionRecipientTarget), Number(deleteDistributionRecipientIndex));

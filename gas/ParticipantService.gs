@@ -7,8 +7,21 @@ function saveParticipant(payload) {
   const id = participant.id || Utilities.getUuid();
   const animal = getAnimal(participant.animalId);
   if (!animal) throw new Error("Hewan tidak ditemukan.");
+  const participants = listParticipants();
+  const duplicateToken = participants.some((item) => {
+    return String(item.id) !== String(id)
+      && String(item.token || "").trim().toUpperCase() === String(participant.token || "").trim().toUpperCase();
+  });
+  if (duplicateToken) throw new Error("Nomor invoice/token sudah dipakai.");
+  const duplicateParticipant = participants.some((item) => {
+    return String(item.id) !== String(id)
+      && String(item.animalId) === String(participant.animalId)
+      && String(item.name || "").trim().toLowerCase() === String(participant.name || "").trim().toLowerCase()
+      && String(item.phone || "").trim().toLowerCase() === String(participant.phone || "").trim().toLowerCase();
+  });
+  if (duplicateParticipant) throw new Error("Peserta ini sudah terdaftar pada hewan yang sama.");
 
-  const existingShares = listParticipants().filter((item) => {
+  const existingShares = participants.filter((item) => {
     return String(item.animalId) === String(participant.animalId) && String(item.id) !== String(id);
   }).reduce((sum, item) => sum + getParticipantShareUnits(item, animal), 0);
   const requestedShares = getPackageShareUnits(participant.packageType, animal);

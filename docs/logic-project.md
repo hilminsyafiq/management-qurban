@@ -35,13 +35,24 @@ Project ini dibuat sebagai aplikasi frontend statis yang bisa berjalan lokal den
   - laporan kupon bisa diunduh CSV dan laporan distribusi bisa dicetak.
 - Logic hewan:
   - tambah, edit, hapus hewan.
+  - kode hewan dibuat otomatis berdasarkan jenis: `SP-xx` untuk sapi, `KG-xx` untuk kambing, dan `DM-xx` untuk domba.
+  - kode hewan wajib unik di frontend dan backend.
   - simpan `photoUrl` untuk profil/foto hewan di halaman publik.
   - jenis hewan menentukan kuota: sapi 7 peserta, kambing/domba 1 peserta.
   - status hewan: `booking`, `paid`, `slaughtered`, `distributed`.
   - hewan tidak boleh dihapus jika masih punya peserta.
+- Alur hewan sampai pemotongan:
+  - Admin mencatat hewan di menu Data Hewan sebagai sumber utama kode hewan, jenis, harga, jadwal, lokasi, dan status.
+  - Peserta/booking memilih hewan dari data tersebut, sehingga kuota dan pembayaran terhubung ke `animalId`.
+  - Saat hewan dipotong, panitia membuka `Modul Teknis > Perolehan daging`.
+  - Field `Kode hewan` pada Perolehan daging mengambil opsi otomatis dari Data Hewan, bukan input manual.
+  - Setelah bobot karkas dan jumlah kantung disimpan, record hewan dengan kode yang sama ikut diperbarui: `carcassWeight` terisi dan status berubah ke `slaughtered` jika sebelumnya masih `booking` atau `paid`.
+  - Data perolehan daging tetap tersimpan di `modules.meatYield` sebagai arsip teknis, sedangkan ringkasan utama hewan tetap berada di `animals`.
 - Logic peserta:
   - tambah, edit, hapus peserta.
   - peserta wajib memilih hewan.
+  - token/invoice peserta wajib unik.
+  - nama + telepon yang sama tidak boleh didaftarkan dua kali pada hewan yang sama.
   - iuran otomatis disarankan dari harga beli + biaya operasional dibagi kuota hewan.
   - peserta baru ditolak jika kuota hewan sudah penuh.
   - status pembayaran dihitung dari `paid >= due`.
@@ -49,6 +60,11 @@ Project ini dibuat sebagai aplikasi frontend statis yang bisa berjalan lokal den
 - Logic distribusi:
   - paket warga, mustahik, panitia, dan peserta.
   - total paket masuk ke ringkasan.
+- Logic anti-duplikat:
+  - wilayah tidak boleh memakai nama yang sama.
+  - user tidak boleh memakai username yang sama.
+  - modul teknis menolak baris data yang seluruh field-nya sama dengan baris yang sudah ada.
+  - kupon umum manual menolak kombinasi penerima + wilayah + kategori yang sama.
 - Logic validasi:
   - cek hewan tanpa peserta.
   - cek hewan tanpa jadwal sembelih.
