@@ -1,5 +1,6 @@
 const ALLOWED_GET_ACTIONS = new Set([
   "publicAnimals",
+  "publicInvoice",
   "animals",
   "participants",
   "distribution",
@@ -8,6 +9,7 @@ const ALLOWED_GET_ACTIONS = new Set([
 ]);
 
 const ALLOWED_POST_ACTIONS = new Set([
+  "publicBooking",
   "saveAnimal",
   "deleteAnimal",
   "saveParticipant",
@@ -57,7 +59,8 @@ async function handleGet(request, response, gasUrl, adminToken) {
     return;
   }
 
-  if (action !== "publicAnimals" && !adminToken) {
+  const isPublicAction = action === "publicAnimals" || action === "publicInvoice";
+  if (!isPublicAction && !adminToken) {
     response.status(500).json({
       ok: false,
       error: "Environment variable GAS_ADMIN_TOKEN belum diatur di Vercel.",
@@ -67,7 +70,10 @@ async function handleGet(request, response, gasUrl, adminToken) {
 
   const url = new URL(gasUrl);
   url.searchParams.set("action", action);
-  if (action !== "publicAnimals") {
+  if (action === "publicInvoice") {
+    url.searchParams.set("invoice", getQueryValue(request.query.invoice) || "");
+  }
+  if (!isPublicAction) {
     url.searchParams.set("adminToken", adminToken);
     url.searchParams.set("adminPassword", getAdminPassword(request));
     url.searchParams.set("loginUsername", getLoginUsername(request));

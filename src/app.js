@@ -2,9 +2,9 @@ const STORAGE_KEY = "qurbanops-state-v1";
 const ADMIN_SESSION_KEY = "qurbanops-admin-password";
 const ACCOUNT_SESSION_KEY = "qurbanops-active-account";
 const fallbackPhotos = {
-  Sapi: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82",
-  Kambing: "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82",
-  Domba: "https://images.unsplash.com/photo-1484557985045-edf25e08da73?auto=format&fit=crop&w=1200&q=82",
+  Sapi: "assets/animal-sapi.svg",
+  Kambing: "assets/animal-kambing.svg",
+  Domba: "assets/animal-domba.svg",
 };
 
 const defaultState = {
@@ -134,6 +134,7 @@ defaultState.participants = [
     due: 4300000,
     paid: 4300000,
     token: "QBN-0001",
+    bookingStatus: "Validasi sukses",
   },
   {
     id: crypto.randomUUID(),
@@ -146,6 +147,7 @@ defaultState.participants = [
     due: 4300000,
     paid: 2500000,
     token: "QBN-0002",
+    bookingStatus: "Menunggu validasi",
   },
   {
     id: crypto.randomUUID(),
@@ -158,6 +160,7 @@ defaultState.participants = [
     due: 3850000,
     paid: 1000000,
     token: "QBN-0003",
+    bookingStatus: "Menunggu validasi",
   },
 ];
 
@@ -815,7 +818,7 @@ function renderAnimalsTable() {
 
 function renderParticipantsTable() {
   if (!state.participants.length) {
-    els.participantsTable.innerHTML = '<tr><td colspan="9">Belum ada peserta qurban.</td></tr>';
+    els.participantsTable.innerHTML = '<tr><td colspan="10">Belum ada peserta qurban.</td></tr>';
     return;
   }
 
@@ -824,6 +827,8 @@ function renderParticipantsTable() {
       const animal = state.animals.find((item) => item.id === participant.animalId);
       const remaining = Number(participant.due) - Number(participant.paid);
       const className = remaining <= 0 ? "" : "warn";
+      const bookingStatus = participant.bookingStatus || "Menunggu validasi";
+      const validationClass = bookingStatus === "Validasi sukses" ? "" : bookingStatus === "Ditolak" ? "danger" : "warn";
       return `
         <tr>
           <td><strong>${escapeHtml(participant.token || "-")}</strong></td>
@@ -833,9 +838,12 @@ function renderParticipantsTable() {
           <td>${animal ? escapeHtml(animal.code) : "Tidak ada"}</td>
           <td>${money(participant.due)}</td>
           <td>${money(participant.paid)}</td>
+          <td><span class="badge ${validationClass}">${escapeHtml(bookingStatus)}</span></td>
           <td><span class="badge ${className}">${remaining <= 0 ? "Lunas" : `Kurang ${money(remaining)}`}</span></td>
           <td>
             <div class="row-actions">
+              <button class="link-btn" data-validate-participant="${participant.id}" type="button">Validasi</button>
+              <button class="link-btn danger" data-reject-participant="${participant.id}" type="button">Tolak</button>
               <button class="link-btn" data-edit-participant="${participant.id}" type="button">Edit</button>
               <button class="link-btn" data-print-participant="${participant.id}" type="button">Cetak</button>
               <button class="link-btn danger" data-delete-participant="${participant.id}" type="button">Hapus</button>
@@ -969,11 +977,13 @@ function openParticipantForm(participantId) {
     Object.entries(participant).forEach(([key, value]) => {
       if (form.elements[key]) form.elements[key].value = value;
     });
+    form.elements.bookingStatus.value = participant.bookingStatus || "Menunggu validasi";
   } else {
     form.elements.id.value = "";
     form.elements.token.value = nextParticipantToken();
     form.elements.due.value = suggestDue(form.elements.animalId.value);
     form.elements.paid.value = 0;
+    form.elements.bookingStatus.value = "Menunggu validasi";
   }
 
   els.participantDialog.showModal();
@@ -984,10 +994,19 @@ async function saveAnimal() {
   if (!form.reportValidity()) return;
 
   const data = Object.fromEntries(new FormData(form));
+  const normalizedCode = data.code.trim().toUpperCase();
+  const duplicateCode = state.animals.some((animal) => animal.id !== data.id && String(animal.code || "").toUpperCase() === normalizedCode);
+  if (duplicateCode) {
+    form.elements.code.setCustomValidity("Kode hewan sudah dipakai. Gunakan kode lain.");
+    form.elements.code.reportValidity();
+    form.elements.code.setCustomValidity("");
+    return;
+  }
+
   const uploadedPhoto = await readCompressedPhoto(document.querySelector("#animalPhotoFile").files[0]);
   const animal = {
     id: data.id || crypto.randomUUID(),
-    code: data.code.trim().toUpperCase(),
+    code: normalizedCode,
     type: data.type,
     weight: Number(data.weight),
     price: Number(data.price),
@@ -1058,6 +1077,13 @@ function saveParticipant() {
     return;
   }
 
+  if (Number(data.paid || 0) > Number(data.due || 0)) {
+    form.elements.paid.setCustomValidity("Pembayaran tidak boleh lebih besar dari iuran wajib.");
+    form.elements.paid.reportValidity();
+    form.elements.paid.setCustomValidity("");
+    return;
+  }
+
   const participant = {
     id: data.id || crypto.randomUUID(),
     token: data.token || nextParticipantToken(),
@@ -1069,6 +1095,7 @@ function saveParticipant() {
     paymentMethod: data.paymentMethod,
     due: Number(data.due),
     paid: Number(data.paid),
+    bookingStatus: data.bookingStatus || "Menunggu validasi",
   };
 
   const index = state.participants.findIndex((item) => item.id === participant.id);
@@ -1180,12 +1207,14 @@ function addDistributionRecipient() {
 function deleteDistributionRecipient(targetIndex, recipientIndex) {
   const target = state.distribution.targets[targetIndex];
   if (!target || !target.recipients) return;
+  if (!window.confirm("Hapus penerima ini dari daftar distribusi?")) return;
   target.recipients.splice(recipientIndex, 1);
   render();
 }
 
 function deleteDistributionTarget(index) {
   state.distribution.targets = state.distribution.targets || [];
+  if (!window.confirm("Hapus tujuan distribusi ini beserta penerima di bawahnya?")) return;
   state.distribution.targets.splice(index, 1);
   render();
 }
@@ -1193,12 +1222,17 @@ function deleteDistributionTarget(index) {
 function renderModulesForm() {
   if (!els.moduleSections) return;
   ensureModuleShape();
-  els.moduleSections.innerHTML = Object.entries(moduleConfigs).map(([key, config]) => {
+  const entries = Object.entries(moduleConfigs);
+  const tabButtons = entries.map(([key, config], index) => `
+    <button class="workflow-tab ${index === 0 ? "active" : ""}" data-module-tab="${escapeHtml(key)}" type="button">${escapeHtml(config.title)}</button>
+  `).join("");
+  const moduleCards = entries.map(([key, config], index) => {
     const rows = state.modules[key] || [];
     const fields = config.fields.map((moduleField) => `
       <label>
         ${escapeHtml(moduleField.label)}
         ${renderModuleFieldControl(moduleField)}
+        ${moduleField.type === "number" ? "<small>Isi angka tanpa titik atau koma.</small>" : ""}
       </label>
     `).join("");
     const tableRows = rows.length ? rows.map((row, index) => `
@@ -1209,7 +1243,7 @@ function renderModulesForm() {
     `).join("") : `<tr><td colspan="${config.fields.length + 1}">Belum ada data.</td></tr>`;
 
     return `
-      <section class="module-card" data-module="${escapeHtml(key)}">
+      <section class="module-card ${index === 0 ? "active" : ""}" data-module="${escapeHtml(key)}">
         <div class="module-head">
           <div>
             <h3>${escapeHtml(config.title)}</h3>
@@ -1234,12 +1268,19 @@ function renderModulesForm() {
       </section>
     `;
   }).join("");
+
+  els.moduleSections.innerHTML = `
+    <div class="workflow-tabs module-tabs" aria-label="Pilih modul teknis">
+      ${tabButtons}
+    </div>
+    ${moduleCards}
+  `;
 }
 
 function renderModuleFieldControl(moduleField) {
   if (moduleField.type === "select") {
     return `
-      <select name="${escapeHtml(moduleField.name)}" data-module-field="${escapeHtml(moduleField.name)}">
+      <select name="${escapeHtml(moduleField.name)}" data-module-field="${escapeHtml(moduleField.name)}" required>
         <option value="">Pilih ${escapeHtml(moduleField.label)}</option>
         ${moduleField.options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
       </select>
@@ -1247,7 +1288,9 @@ function renderModuleFieldControl(moduleField) {
   }
 
   const step = moduleField.step ? ` step="${escapeHtml(moduleField.step)}"` : "";
-  return `<input name="${escapeHtml(moduleField.name)}" type="${escapeHtml(moduleField.type)}"${step} data-module-field="${escapeHtml(moduleField.name)}" />`;
+  const numericAttrs = moduleField.type === "number" ? ` min="0" max="999999999" inputmode="numeric"` : "";
+  const textAttrs = moduleField.type === "text" || moduleField.type === "tel" ? ` maxlength="100"` : "";
+  return `<input name="${escapeHtml(moduleField.name)}" type="${escapeHtml(moduleField.type)}"${step}${numericAttrs}${textAttrs} data-module-field="${escapeHtml(moduleField.name)}" required />`;
 }
 
 function saveModules() {
@@ -1457,6 +1500,7 @@ function addModuleRecord(moduleKey) {
   const config = moduleConfigs[moduleKey];
   const form = document.querySelector(`[data-module-form="${moduleKey}"]`);
   if (!config || !form) return;
+  if (!form.reportValidity()) return;
 
   const record = {};
   config.fields.forEach((moduleField) => {
@@ -1474,6 +1518,7 @@ function addModuleRecord(moduleKey) {
 }
 
 function deleteModuleRecord(moduleKey, index) {
+  if (!window.confirm("Hapus data modul ini? Data akan hilang dari penyimpanan lokal.")) return;
   ensureModuleShape();
   state.modules[moduleKey].splice(index, 1);
   render();
@@ -1484,12 +1529,21 @@ function deleteAnimal(animalId) {
     alert("Hewan masih punya peserta. Pindahkan atau hapus peserta dulu.");
     return;
   }
+  if (!window.confirm("Hapus data hewan ini? Data akan hilang dari penyimpanan lokal.")) return;
   state.animals = state.animals.filter((animal) => animal.id !== animalId);
   render();
 }
 
 function deleteParticipant(participantId) {
+  if (!window.confirm("Hapus data peserta ini? Data akan hilang dari penyimpanan lokal.")) return;
   state.participants = state.participants.filter((participant) => participant.id !== participantId);
+  render();
+}
+
+function setParticipantValidation(participantId, bookingStatus) {
+  const participant = state.participants.find((item) => item.id === participantId);
+  if (!participant) return;
+  participant.bookingStatus = bookingStatus;
   render();
 }
 
@@ -1529,6 +1583,13 @@ function saveSettings() {
 function addArea() {
   if (!els.areaForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.areaForm));
+  const duplicateArea = state.modules.areas.some((area) => String(area.name || "").trim().toLowerCase() === data.name.trim().toLowerCase());
+  if (duplicateArea) {
+    els.areaForm.elements.name.setCustomValidity("Nama wilayah sudah ada.");
+    els.areaForm.elements.name.reportValidity();
+    els.areaForm.elements.name.setCustomValidity("");
+    return;
+  }
   state.modules.areas.push({
     id: crypto.randomUUID(),
     name: data.name.trim(),
@@ -1543,6 +1604,13 @@ function addArea() {
 function addUser() {
   if (!els.userForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.userForm));
+  const duplicateUser = state.modules.users.some((user) => String(user.username || "").trim().toLowerCase() === data.username.trim().toLowerCase());
+  if (duplicateUser) {
+    els.userForm.elements.username.setCustomValidity("Username sudah dipakai.");
+    els.userForm.elements.username.reportValidity();
+    els.userForm.elements.username.setCustomValidity("");
+    return;
+  }
   state.modules.users.push({
     id: crypto.randomUUID(),
     name: data.name.trim(),
@@ -1580,7 +1648,7 @@ function createCoupon({ recipientName = "", areaId = "", category = "Umum", sour
 function generateCoupons() {
   if (!els.couponGenerateForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.couponGenerateForm));
-  const count = Math.max(1, Number(data.count || 1));
+  const count = Math.min(500, Math.max(1, Number(data.count || 1)));
   for (let index = 0; index < count; index += 1) {
     state.modules.coupons.push(createCoupon({
       recipientName: data.recipientName.trim(),
@@ -1741,6 +1809,20 @@ function activateView(item) {
   if (view) view.classList.add("active");
 }
 
+function activateWorkflowTab(tabButton) {
+  const group = tabButton.dataset.workflowTab;
+  const target = tabButton.dataset.workflowTarget;
+  document.querySelectorAll(`[data-workflow-tab="${group}"]`).forEach((button) => button.classList.toggle("active", button === tabButton));
+  document.querySelectorAll(`[data-workflow-panel="${group}"]`).forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.workflowName === target);
+  });
+}
+
+function activateModuleTab(moduleKey) {
+  document.querySelectorAll("[data-module-tab]").forEach((button) => button.classList.toggle("active", button.dataset.moduleTab === moduleKey));
+  document.querySelectorAll("[data-module]").forEach((card) => card.classList.toggle("active", card.dataset.module === moduleKey));
+}
+
 document.querySelector("#openAnimalFormBtn").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openAnimalFormBtn2").addEventListener("click", () => openAnimalForm());
 document.querySelector("#openParticipantFormBtn").addEventListener("click", () => openParticipantForm());
@@ -1769,6 +1851,7 @@ document.querySelector("#downloadCouponsReportBtn").addEventListener("click", do
 document.querySelector("#printDistributionReportBtn").addEventListener("click", printDistributionReport);
 document.querySelector("#saveProfileBtn").addEventListener("click", saveProfile);
 document.querySelector("#resetDemoBtn").addEventListener("click", () => {
+  if (!window.confirm("Reset seluruh data demo? Data lokal yang sudah diubah akan diganti dengan data contoh.")) return;
   state = structuredClone(defaultState);
   render();
 });
@@ -1816,11 +1899,24 @@ els.navItems.forEach((item) => {
 });
 
 document.addEventListener("click", (event) => {
+  const workflowTab = event.target.closest("[data-workflow-tab]");
+  const moduleTab = event.target.closest("[data-module-tab]");
+  if (workflowTab) {
+    activateWorkflowTab(workflowTab);
+    return;
+  }
+  if (moduleTab) {
+    activateModuleTab(moduleTab.dataset.moduleTab);
+    return;
+  }
+
   const editAnimalId = event.target.dataset.editAnimal;
   const deleteAnimalId = event.target.dataset.deleteAnimal;
   const editParticipantId = event.target.dataset.editParticipant;
   const deleteParticipantId = event.target.dataset.deleteParticipant;
   const printParticipantId = event.target.dataset.printParticipant;
+  const validateParticipantId = event.target.dataset.validateParticipant;
+  const rejectParticipantId = event.target.dataset.rejectParticipant;
   const moduleAdd = event.target.dataset.moduleAdd;
   const moduleDelete = event.target.dataset.moduleDelete;
   const moduleIndex = event.target.dataset.moduleIndex;
@@ -1834,6 +1930,8 @@ document.addEventListener("click", (event) => {
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
   if (editParticipantId) openParticipantForm(editParticipantId);
+  if (validateParticipantId) setParticipantValidation(validateParticipantId, "Validasi sukses");
+  if (rejectParticipantId) setParticipantValidation(rejectParticipantId, "Ditolak");
   if (printParticipantId) printParticipantCards([printParticipantId]);
   if (deleteParticipantId) deleteParticipant(deleteParticipantId);
   if (moduleAdd) addModuleRecord(moduleAdd);
@@ -1841,6 +1939,7 @@ document.addEventListener("click", (event) => {
   if (deleteDistributionTargetIndex !== undefined) deleteDistributionTarget(Number(deleteDistributionTargetIndex));
   if (deleteDistributionRecipientTarget !== undefined) deleteDistributionRecipient(Number(deleteDistributionRecipientTarget), Number(deleteDistributionRecipientIndex));
   if (deleteAreaId) {
+    if (!window.confirm("Hapus wilayah ini? Kupon yang memakai wilayah ini akan kehilangan referensi wilayah.")) return;
     state.modules.areas = state.modules.areas.filter((area) => area.id !== deleteAreaId);
     state.modules.coupons.forEach((coupon) => {
       if (coupon.areaId === deleteAreaId) coupon.areaId = "";
@@ -1848,10 +1947,12 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (deleteUserId) {
+    if (!window.confirm("Hapus user ini? Akun tidak bisa dipakai lagi setelah dihapus.")) return;
     state.modules.users = state.modules.users.filter((user) => user.id !== deleteUserId);
     render();
   }
   if (deleteCouponId) {
+    if (!window.confirm("Hapus kupon ini? Data kupon akan hilang dari penyimpanan lokal.")) return;
     state.modules.coupons = state.modules.coupons.filter((coupon) => coupon.id !== deleteCouponId);
     render();
   }

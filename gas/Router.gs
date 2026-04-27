@@ -6,6 +6,7 @@ function routeGet(event) {
   if (action === "setup") return setupSheets();
   if (action === "animals") return { animals: listAnimals(), participants: listParticipants(), summary: getSummary() };
   if (action === "publicAnimals") return getPublicAnimals();
+  if (action === "publicInvoice") return getPublicInvoice(getParam(event, "invoice", ""));
   if (action === "participants") return { participants: listParticipants() };
   if (action === "distribution") return { distribution: getDistribution() };
   if (action === "state") return getFullState();
@@ -18,6 +19,8 @@ function routePost(event) {
   const action = body.action || getParam(event, "action", "");
   const payload = body.payload || body;
 
+  if (action === "publicBooking") return savePublicBooking(payload);
+
   requireAdminAccess(event, body);
 
   if (action === "saveAnimal") return { animal: saveAnimal(payload) };
@@ -28,6 +31,30 @@ function routePost(event) {
   if (action === "syncState") return syncState(payload);
 
   throw new Error("Action POST tidak dikenal: " + action);
+}
+
+function savePublicBooking(payload) {
+  const participant = saveParticipant({
+    id: payload.id || "",
+    token: payload.token || "",
+    name: payload.name,
+    phone: payload.phone,
+    address: payload.address,
+    animalId: payload.animalId,
+    packageType: payload.packageType,
+    paymentMethod: payload.paymentMethod,
+    due: payload.due,
+    paid: 0,
+    bookingStatus: "Menunggu validasi",
+  });
+
+  const publicData = getPublicAnimals();
+  return {
+    participant,
+    animals: publicData.animals,
+    distribution: publicData.distribution,
+    summary: publicData.summary,
+  };
 }
 
 function getFullState() {
@@ -66,6 +93,22 @@ function getPublicAnimals() {
   });
 
   return { animals, distribution: getDistribution(), summary: getSummary() };
+}
+
+function getPublicInvoice(invoice) {
+  const normalizedInvoice = String(invoice || "").trim().toUpperCase();
+  if (!normalizedInvoice) throw new Error("Nomor invoice wajib diisi.");
+  const participant = listParticipants().find((item) => String(item.token || "").trim().toUpperCase() === normalizedInvoice);
+  if (!participant) return { participant: null };
+  const animal = listAnimals().find((item) => String(item.id) === String(participant.animalId));
+  return {
+    participant,
+    animal: animal ? {
+      id: animal.id,
+      code: animal.code,
+      type: animal.type,
+    } : null,
+  };
 }
 
 function syncState(payload) {

@@ -8,7 +8,7 @@ const demoAnimals = [
     cost: 1600000,
     status: "paid",
     schedule: "2026-05-28T07:30",
-    photoUrl: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82",
+    photoUrl: "assets/animal-sapi.svg",
     capacity: 7,
     filled: 2,
     available: 5,
@@ -22,7 +22,7 @@ const demoAnimals = [
     cost: 250000,
     status: "booking",
     schedule: "2026-05-28T09:00",
-    photoUrl: "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82",
+    photoUrl: "assets/animal-kambing.svg",
     capacity: 1,
     filled: 1,
     available: 0,
@@ -36,13 +36,14 @@ const demoAnimals = [
     cost: 225000,
     status: "booking",
     schedule: "2026-05-28T10:00",
-    photoUrl: "https://images.unsplash.com/photo-1484557985045-edf25e08da73?auto=format&fit=crop&w=1200&q=82",
+    photoUrl: "assets/animal-domba.svg",
     capacity: 1,
     filled: 0,
     available: 1,
   },
 ];
 
+const STORAGE_KEY = "qurbanops-state-v1";
 let publicAnimals = [];
 let publicDistribution = {
   warga: 120,
@@ -68,6 +69,8 @@ const publicEls = {
   bookingForm: document.querySelector("#bookingForm"),
   bookingSelect: document.querySelector("#bookingAnimalSelect"),
   bookingResult: document.querySelector("#bookingResult"),
+  invoiceCheckForm: document.querySelector("#invoiceCheckForm"),
+  invoiceCheckResult: document.querySelector("#invoiceCheckResult"),
   distributionSummary: document.querySelector("#distributionSummary"),
   distributionTargets: document.querySelector("#distributionTargets"),
 };
@@ -97,6 +100,115 @@ function statusLabel(status) {
     distributed: "Distribusi",
   };
   return labels[status] || status;
+}
+
+function shareCapacity(type) {
+  return type === "Sapi" ? 7 : 1;
+}
+
+function normalizePublicAnimal(animal, participants = []) {
+  const capacity = shareCapacity(animal.type);
+  const filled = participants.filter((participant) => String(participant.animalId) === String(animal.id)).length;
+  return {
+    ...animal,
+    capacity,
+    filled,
+    available: Math.max(0, capacity - filled),
+  };
+}
+
+function getLocalState() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function setLocalState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getLocalPublicData() {
+  const state = getLocalState();
+  if (!state || !Array.isArray(state.animals) || !state.animals.length) return null;
+  return {
+    animals: state.animals.map((animal) => normalizePublicAnimal(animal, state.participants || [])),
+    distribution: state.distribution,
+  };
+}
+
+function nextLocalInvoice(state) {
+  const nextNumber = (state.participants || []).reduce((max, participant) => {
+    const match = String(participant.token || "").match(/QBN-(\d+)/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `QBN-${String(nextNumber).padStart(4, "0")}`;
+}
+
+function makeBookingPayload(formData, animal, invoice = "") {
+  const total = Number(animal.price || 0) + Number(animal.cost || 0);
+  return {
+    id: crypto.randomUUID(),
+    token: invoice,
+    name: String(formData.name || "").trim(),
+    phone: String(formData.phone || "").trim(),
+    address: String(formData.address || "").trim(),
+    animalId: animal.id,
+    packageType: animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`,
+    paymentMethod: formData.paymentMethod || "Transfer",
+    due: Math.ceil(total / shareCapacity(animal.type)),
+    paid: 0,
+    bookingStatus: "Menunggu validasi",
+    note: String(formData.note || "").trim(),
+  };
+}
+
+function makeDemoParticipant(animal, index) {
+  return {
+    id: crypto.randomUUID(),
+    token: `QBN-${String(index + 1).padStart(4, "0")}`,
+    name: `Peserta demo ${index + 1}`,
+    phone: "",
+    address: "",
+    animalId: animal.id,
+    packageType: animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`,
+    paymentMethod: "Transfer",
+    due: Math.ceil((Number(animal.price || 0) + Number(animal.cost || 0)) / shareCapacity(animal.type)),
+    paid: 0,
+    bookingStatus: "Menunggu validasi",
+  };
+}
+
+function getBookingStatusLabel(status) {
+  return status || "Menunggu validasi";
+}
+
+function findLocalInvoice(invoice) {
+  const state = getLocalState();
+  if (!state || !Array.isArray(state.participants)) return null;
+  const normalizedInvoice = String(invoice || "").trim().toUpperCase();
+  const participant = state.participants.find((item) => String(item.token || "").trim().toUpperCase() === normalizedInvoice);
+  if (!participant) return null;
+  const animal = (state.animals || []).find((item) => String(item.id) === String(participant.animalId));
+  return { participant, animal };
+}
+
+function makeInitialLocalState() {
+  const participants = [];
+  demoAnimals.forEach((animal) => {
+    const filled = Math.min(Number(animal.filled || 0), shareCapacity(animal.type));
+    for (let index = 0; index < filled; index += 1) {
+      participants.push(makeDemoParticipant(animal, participants.length));
+    }
+  });
+
+  return {
+    animals: demoAnimals.map(({ capacity, filled, available, ...animal }) => ({ ...animal })),
+    participants,
+    distribution: structuredClone(publicDistribution),
+    modules: {},
+  };
 }
 
 function formatSchedule(value) {
@@ -283,7 +395,7 @@ function renderBookingOptions() {
   }
 
   publicEls.bookingSelect.innerHTML = availableAnimals.map((animal) => {
-    return `<option value="${escapeHtml(animal.id)}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)} (${Number(animal.available || 0)} slot peserta)</option>`;
+    return `<option value="${escapeHtml(animal.id)}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)} (${Number(animal.available || 0)} dari ${Number(animal.capacity || shareCapacity(animal.type))} slot tersedia)</option>`;
   }).join("");
 }
 
@@ -293,9 +405,9 @@ function getCapacityText(animal) {
 }
 
 function getFallbackAnimalPhoto(type) {
-  if (type === "Kambing") return "https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&w=1200&q=82";
-  if (type === "Domba") return "https://images.unsplash.com/photo-1484557985045-edf25e08da73?auto=format&fit=crop&w=1200&q=82";
-  return "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=82";
+  if (type === "Kambing") return "assets/animal-kambing.svg";
+  if (type === "Domba") return "assets/animal-domba.svg";
+  return "assets/animal-sapi.svg";
 }
 
 function loadWithJsonp(url) {
@@ -339,7 +451,9 @@ async function loadAnimals() {
   }
 
   if (!appsScriptUrl) {
-    publicAnimals = demoAnimals;
+    const localData = getLocalPublicData();
+    publicAnimals = localData ? localData.animals : demoAnimals.map((animal) => normalizePublicAnimal(animal));
+    if (localData && localData.distribution) publicDistribution = localData.distribution;
     renderPublicAnimals();
     return;
   }
@@ -360,20 +474,133 @@ async function fetchJson(url) {
   return response.json();
 }
 
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok || data.ok === false) throw new Error(data.error || "Request API gagal.");
+  return data;
+}
+
+async function submitLocalBooking(formData, animal) {
+  const savedState = getLocalState();
+  const state = savedState && Array.isArray(savedState.animals) ? savedState : makeInitialLocalState();
+
+  const currentAnimal = state.animals.find((item) => String(item.id) === String(animal.id));
+  if (!currentAnimal) throw new Error("Hewan tidak ditemukan di data lokal.");
+
+  const participants = state.participants || [];
+  const filled = participants.filter((participant) => String(participant.animalId) === String(animal.id)).length;
+  if (filled >= shareCapacity(currentAnimal.type)) throw new Error("Kuota hewan sudah penuh.");
+
+  const invoice = nextLocalInvoice(state);
+  participants.push(makeBookingPayload(formData, currentAnimal, invoice));
+  state.participants = participants;
+  setLocalState(state);
+
+  const localData = getLocalPublicData();
+  if (localData) {
+    publicAnimals = localData.animals;
+    if (localData.distribution) publicDistribution = localData.distribution;
+  }
+  return { invoice };
+}
+
+async function submitBooking(formData, animal) {
+  const config = window.QURBAN_CONFIG || {};
+  const apiBaseUrl = config.apiBaseUrl || "";
+
+  if (apiBaseUrl && location.protocol !== "file:") {
+    const data = await postJson(apiBaseUrl, {
+      action: "publicBooking",
+      payload: makeBookingPayload(formData, animal),
+    });
+    if (data.animals && data.animals.length) publicAnimals = data.animals;
+    if (data.distribution) publicDistribution = data.distribution;
+    return { invoice: data.participant && data.participant.token };
+  }
+
+  return submitLocalBooking(formData, animal);
+}
+
+async function checkInvoice(invoice) {
+  const config = window.QURBAN_CONFIG || {};
+  const apiBaseUrl = config.apiBaseUrl || "";
+  const normalizedInvoice = String(invoice || "").trim().toUpperCase();
+
+  if (apiBaseUrl && location.protocol !== "file:") {
+    const data = await fetchJson(`${apiBaseUrl}?action=publicInvoice&invoice=${encodeURIComponent(normalizedInvoice)}`);
+    if (!data.participant) return null;
+    return data;
+  }
+
+  return findLocalInvoice(normalizedInvoice);
+}
+
 [publicEls.search, publicEls.type, publicEls.quota].forEach((element) => {
   element.addEventListener("input", renderPublicAnimals);
   element.addEventListener("change", renderPublicAnimals);
 });
 
 if (publicEls.bookingForm) {
-  publicEls.bookingForm.addEventListener("submit", (event) => {
+  publicEls.bookingForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!publicEls.bookingForm.reportValidity()) return;
     const formData = Object.fromEntries(new FormData(publicEls.bookingForm));
     const animal = publicAnimals.find((item) => item.id === formData.animalId);
+    if (!animal) {
+      publicEls.bookingResult.textContent = "Pilih hewan qurban terlebih dahulu.";
+      return;
+    }
+    if (Number(animal.available || 0) <= 0) {
+      publicEls.bookingResult.textContent = `${animal.code} - ${animal.type} sudah penuh. Silakan pilih hewan lain.`;
+      renderBookingOptions();
+      return;
+    }
+
     const animalLabel = animal ? `${animal.code} - ${animal.type}` : "hewan qurban";
-    publicEls.bookingResult.textContent = `Terima kasih, ${formData.name}. Minat booking ${animalLabel} dengan metode ${formData.paymentMethod} sudah dicatat sementara. Panitia akan menghubungi ${formData.phone}.`;
-    publicEls.bookingForm.reset();
-    renderBookingOptions();
+    publicEls.bookingResult.textContent = "Menyimpan booking dan membuat invoice...";
+
+    try {
+      const result = await submitBooking(formData, animal);
+      publicEls.bookingResult.textContent = `Invoice booking ${result.invoice} berhasil dibuat untuk ${formData.name}. Simpan nomor ini untuk validasi panitia. Pilihan: ${animalLabel}, metode ${formData.paymentMethod}. Panitia akan menghubungi ${formData.phone}.`;
+      publicEls.bookingForm.reset();
+      renderPublicAnimals();
+    } catch (error) {
+      publicEls.bookingResult.textContent = error.message || "Booking gagal disimpan. Coba lagi atau hubungi panitia.";
+    }
+  });
+}
+
+if (publicEls.invoiceCheckForm) {
+  publicEls.invoiceCheckForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!publicEls.invoiceCheckForm.reportValidity()) return;
+    const formData = Object.fromEntries(new FormData(publicEls.invoiceCheckForm));
+    publicEls.invoiceCheckResult.textContent = "Mengecek invoice...";
+
+    try {
+      const result = await checkInvoice(formData.invoice);
+      if (!result || !result.participant) {
+        publicEls.invoiceCheckResult.textContent = "Invoice tidak ditemukan. Pastikan nomor yang dimasukkan benar atau hubungi panitia.";
+        return;
+      }
+
+      const participant = result.participant;
+      const animal = result.animal;
+      const remaining = Number(participant.due || 0) - Number(participant.paid || 0);
+      const paymentText = remaining <= 0 ? "Lunas" : `Belum lunas, sisa ${money(remaining)}`;
+      const animalText = animal ? `${animal.code} - ${animal.type}` : "Hewan belum tersedia";
+      publicEls.invoiceCheckResult.textContent = `Invoice ${participant.token}: ${getBookingStatusLabel(participant.bookingStatus)}. Peserta ${participant.name}, pilihan ${animalText}. Status pembayaran: ${paymentText}.`;
+    } catch (error) {
+      publicEls.invoiceCheckResult.textContent = error.message || "Invoice gagal dicek. Coba lagi atau hubungi panitia.";
+    }
   });
 }
 

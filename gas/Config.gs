@@ -7,7 +7,7 @@ const APP_CONFIG = {
   },
   headers: {
     animals: ["id", "code", "type", "weight", "age", "price", "cost", "status", "schedule", "location", "carcassWeight", "brightEyes", "healthyCoat", "noDefect", "photoUrl", "createdAt", "updatedAt"],
-    participants: ["id", "token", "name", "phone", "address", "animalId", "packageType", "paymentMethod", "due", "paid", "createdAt", "updatedAt"],
+    participants: ["id", "token", "name", "phone", "address", "animalId", "packageType", "paymentMethod", "due", "paid", "bookingStatus", "createdAt", "updatedAt"],
     distribution: ["key", "value", "updatedAt"],
     modules: ["key", "value", "updatedAt"],
   },

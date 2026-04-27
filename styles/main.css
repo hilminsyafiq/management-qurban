@@ -635,6 +635,574 @@ label {
   }
 }
 
+/* Final admin safety overrides kept at the end so earlier base styles cannot flatten them. */
+#animalDialog,
+#participantDialog {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.dialog-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dialog-form fieldset .wide,
+.dialog-form .input-note.wide {
+  grid-column: 1 / -1;
+}
+
+.module-sections > .module-card {
+  display: none;
+}
+
+.module-sections > .module-card.active {
+  display: block;
+}
+
+.workflow-panel {
+  display: none;
+}
+
+.workflow-panel.active {
+  display: block;
+}
+
+@media (max-width: 720px) {
+  .dialog-form fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    box-shadow: 0 14px 28px rgba(9, 34, 29, 0.18);
+  }
+
+  .brand {
+    min-height: 44px;
+  }
+
+  .nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .nav-label,
+  .sidebar-note {
+    display: none;
+  }
+
+  .role-switch {
+    flex: 0 0 210px;
+  }
+
+  .nav-item,
+  .nav-link {
+    flex: 0 0 auto;
+    min-width: max-content;
+    min-height: 42px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+}
+
+/* Safer admin input workflow: grouped nav, guided forms, and internal tabs. */
+.nav-label {
+  margin: 8px 8px 0;
+  color: rgba(249, 243, 232, 0.5);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.form-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(248, 251, 246, 0.84));
+  box-shadow: 0 12px 28px rgba(22, 45, 38, 0.07);
+}
+
+.input-note {
+  margin: 10px 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+label small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.workflow-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.workflow-tab {
+  min-height: 42px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.workflow-tab.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(13, 118, 92, 0.18);
+}
+
+.workflow-panel {
+  display: none;
+}
+
+.workflow-panel.active {
+  display: block;
+  animation: panelIn 180ms ease both;
+}
+
+.module-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.module-card {
+  display: none;
+}
+
+.module-card.active {
+  display: block;
+  animation: panelIn 180ms ease both;
+}
+
+.module-entry-form.form-card,
+.module-entry-form {
+  align-items: end;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+fieldset legend {
+  padding: 0 8px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.dialog-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dialog-form fieldset + fieldset {
+  margin-top: 2px;
+}
+
+.dialog-form .wide {
+  grid-column: 1 / -1;
+}
+
+dialog {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.dialog-head {
+  margin: -22px -22px 0;
+  background: #f8fbf6;
+}
+
+.distribution-grid label,
+.distribution-target-form label,
+.distribution-recipient-form label {
+  min-width: 0;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1040px) {
+  .nav-label {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .workflow-tabs {
+    display: grid;
+  }
+
+  .workflow-tab {
+    width: 100%;
+  }
+
+  .dialog-form fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  dialog {
+    width: min(560px, calc(100vw - 20px));
+  }
+}
+
+/* UI/UX Pro Max admin polish: denser operations UI with clearer states. */
+:root {
+  --bg: #f4f7f2;
+  --panel: #ffffff;
+  --ink: #121816;
+  --muted: #5f6b66;
+  --line: #d7e1d9;
+  --accent: #0d765c;
+  --accent-strong: #0a493d;
+  --amber: #b77916;
+  --soft: #e8f4ee;
+  --sky: #dcebf2;
+  --shadow: 0 16px 38px rgba(22, 45, 38, 0.1);
+}
+
+body {
+  background:
+    linear-gradient(90deg, rgba(13, 118, 92, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, #f7fbf4 0%, #eef6f7 48%, #f7f3e9 100%);
+  background-size: 44px 44px, auto;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(255, 194, 97, 0.95);
+  outline-offset: 3px;
+}
+
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(11, 61, 52, 0.96), rgba(8, 42, 36, 0.98)),
+    url("../assets/qurban-mark.svg") right 20px bottom 20px / 92px auto no-repeat;
+  box-shadow: 12px 0 34px rgba(9, 34, 29, 0.14);
+}
+
+.brand-mark {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.role-switch {
+  min-height: 48px;
+}
+
+.role-btn,
+.nav-item,
+.nav-link,
+.primary-btn,
+.ghost-btn,
+.icon-btn {
+  min-height: 44px;
+}
+
+.nav-item,
+.nav-link {
+  font-weight: 750;
+}
+
+.nav-item.active {
+  box-shadow: inset 4px 0 0 #f1bd5a;
+}
+
+.app-shell {
+  padding: clamp(18px, 3vw, 34px);
+}
+
+.topbar {
+  min-height: 78px;
+  padding-bottom: 4px;
+}
+
+.topbar-actions {
+  align-items: center;
+}
+
+.primary-btn,
+.ghost-btn,
+.icon-btn {
+  font-weight: 800;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.primary-btn {
+  border: 1px solid rgba(13, 118, 92, 0.2);
+  box-shadow: 0 12px 22px rgba(13, 118, 92, 0.18);
+}
+
+.primary-btn:hover,
+.ghost-btn:hover,
+.icon-btn:hover {
+  transform: translateY(-1px);
+}
+
+.ghost-btn:hover,
+.icon-btn:hover {
+  border-color: #b6c9bd;
+  background: #f8fbf6;
+}
+
+.summary-grid,
+.ops-grid {
+  gap: 14px;
+}
+
+.metric {
+  min-height: 128px;
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(215, 225, 217, 0.96);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.metric::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, var(--accent), #2b82a0, #f1bd5a);
+}
+
+.metric strong {
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+}
+
+.workspace-main,
+.inspector {
+  border-radius: 8px;
+  border-color: rgba(215, 225, 217, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.view-panel {
+  padding: clamp(18px, 2.5vw, 26px);
+}
+
+.section-head {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+select,
+input,
+textarea {
+  min-height: 46px;
+  border-color: #cbd8d0;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+textarea {
+  padding-top: 11px;
+  line-height: 1.5;
+}
+
+select:hover,
+input:hover,
+textarea:hover {
+  border-color: #aebfb5;
+}
+
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(13, 118, 92, 0.12);
+  outline: 0;
+}
+
+.animal-card,
+.module-card,
+.target-row,
+.validation-item,
+.health-grid label {
+  border-radius: 8px;
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.animal-card {
+  box-shadow: 0 10px 24px rgba(22, 45, 38, 0.06);
+}
+
+.animal-card:hover {
+  box-shadow: var(--shadow);
+}
+
+.progress-track {
+  background: #dfe8e2;
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, var(--accent), #2b82a0);
+}
+
+.badge {
+  border: 1px solid rgba(13, 118, 92, 0.16);
+}
+
+.table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+table {
+  min-width: 780px;
+}
+
+th {
+  background: #f8fbf6;
+  color: #50615a;
+  letter-spacing: 0;
+}
+
+td {
+  color: #202a26;
+}
+
+tr:hover td {
+  background: #f9fcf8;
+}
+
+.module-card {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.dialog-head {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+dialog {
+  border-radius: 8px;
+}
+
+.login-form {
+  background:
+    linear-gradient(180deg, #fff, #f8fbf6);
+}
+
+.login-form img {
+  border-radius: 8px;
+  background: #0b3d34;
+}
+
+.empty,
+.scan-result {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 1040px) {
+  .sidebar {
+    min-height: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sidebar-note {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .sidebar,
+  .app-shell {
+    padding: 16px;
+  }
+
+  .nav {
+    grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: clamp(28px, 9vw, 38px);
+  }
+
+  .topbar-actions,
+  .primary-btn,
+  .ghost-btn {
+    width: 100%;
+  }
+
+  .topbar-actions button {
+    width: 100%;
+  }
+
+  .metric {
+    min-height: 112px;
+  }
+}
+
 dialog {
   width: min(560px, calc(100vw - 28px));
   border: 0;
@@ -737,6 +1305,64 @@ dialog::backdrop {
   .settings-grid,
   .coupon-tools,
   .scan-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* End-of-file overrides for the guided admin workflow. */
+#animalDialog,
+#participantDialog {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.module-sections > .module-card,
+.workflow-panel {
+  display: none;
+}
+
+.module-sections > .module-card.active,
+.workflow-panel.active {
+  display: block;
+}
+
+@media (max-width: 720px) {
+  #animalDialog,
+  #participantDialog {
+    width: min(560px, calc(100vw - 20px));
+  }
+
+  .sidebar {
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .nav {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .nav-label,
+  .sidebar-note {
+    display: none;
+  }
+
+  .role-switch {
+    flex: 0 0 210px;
+  }
+
+  .nav-item,
+  .nav-link {
+    flex: 0 0 auto;
+    min-width: max-content;
+    white-space: nowrap;
+  }
+
+  .dialog-form fieldset {
     grid-template-columns: 1fr;
   }
 }

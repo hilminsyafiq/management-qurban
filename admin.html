@@ -41,11 +41,14 @@
           <button class="role-btn active" data-role-switch="admin" type="button">Admin</button>
           <button class="role-btn" data-role-switch="panitia" type="button">Panitia</button>
         </div>
+        <span class="nav-label">Utama</span>
         <button class="nav-item active" data-view="overview" data-access="admin panitia" type="button">Dashboard</button>
-        <button class="nav-item" data-view="settings" data-access="admin" type="button">Pengaturan Aplikasi</button>
+        <button class="nav-item" data-view="settings" data-access="admin" type="button">Pengaturan</button>
+        <span class="nav-label">Data master</span>
         <button class="nav-item" data-view="areas" data-access="admin" type="button">Data Wilayah</button>
         <button class="nav-item" data-view="users" data-access="admin" type="button">Data User</button>
         <button class="nav-item" data-view="coupons" data-access="admin" type="button">Data Kupon</button>
+        <span class="nav-label">Operasional</span>
         <button class="nav-item" data-view="scan" data-access="admin panitia" type="button">Scan Kupon</button>
         <button class="nav-item" data-view="scanHistory" data-access="admin panitia" type="button">Riwayat Scan</button>
         <button class="nav-item" data-view="reports" data-access="admin" type="button">Rekap & Laporan</button>
@@ -154,12 +157,12 @@
               </div>
               <button class="primary-btn" id="saveSettingsBtn" type="button">Simpan pengaturan</button>
             </div>
-            <form class="settings-grid" id="settingsForm">
-              <label>Nama masjid/lembaga <input name="institutionName" required /></label>
-              <label>Tahun kurban <input name="qurbanYear" required /></label>
-              <label>Alamat <input name="address" /></label>
-              <label>Kontak panitia <input name="contact" /></label>
-              <label>Jumlah kantung per kupon <input name="bagsPerCoupon" min="1" type="number" /></label>
+            <form class="settings-grid form-card" id="settingsForm">
+              <label>Nama masjid/lembaga <input name="institutionName" required maxlength="80" /></label>
+              <label>Tahun kurban <input name="qurbanYear" required maxlength="24" placeholder="1447 H / 2026" /></label>
+              <label>Alamat <input name="address" maxlength="140" /></label>
+              <label>Kontak panitia <input name="contact" inputmode="tel" maxlength="20" placeholder="08xxxxxxxxxx" /></label>
+              <label>Jumlah kantung per kupon <input name="bagsPerCoupon" min="1" max="20" type="number" /></label>
               <label>Status aplikasi
                 <select name="appStatus">
                   <option value="Persiapan">Persiapan</option>
@@ -167,7 +170,7 @@
                   <option value="Selesai">Selesai</option>
                 </select>
               </label>
-              <label class="wide">Catatan umum <textarea name="notes" rows="4"></textarea></label>
+              <label class="wide">Catatan umum <textarea name="notes" rows="4" maxlength="240"></textarea></label>
             </form>
           </div>
 
@@ -179,12 +182,13 @@
               </div>
               <button class="primary-btn" id="addAreaBtn" type="button">Tambah wilayah</button>
             </div>
-            <form class="module-entry-form area-form" id="areaForm">
-              <label>Nama wilayah <input name="name" required placeholder="RT 01 / Dusun Melati" /></label>
-              <label>Koordinator <input name="coordinator" placeholder="Nama PIC" /></label>
-              <label>Target kupon <input name="quota" min="0" type="number" /></label>
-              <label>Catatan <input name="notes" /></label>
+            <form class="module-entry-form area-form form-card" id="areaForm">
+              <label>Nama wilayah <input name="name" required maxlength="70" placeholder="RT 01 / Dusun Melati" /></label>
+              <label>Koordinator <input name="coordinator" maxlength="50" placeholder="Nama PIC" /></label>
+              <label>Target kupon <input name="quota" min="0" max="999" type="number" /></label>
+              <label>Catatan <input name="notes" maxlength="120" /></label>
             </form>
+            <p class="input-note">Simpan wilayah dulu sebelum generate kupon agar pilihan wilayah tidak tertukar.</p>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -210,17 +214,17 @@
               </div>
               <button class="primary-btn" id="addUserBtn" type="button">Tambah user</button>
             </div>
-            <form class="module-entry-form user-form" id="userForm">
-              <label>Nama <input name="name" required /></label>
-              <label>Username <input name="username" required autocomplete="off" /></label>
-              <label>Password <input name="password" required type="password" autocomplete="new-password" /></label>
+            <form class="module-entry-form user-form form-card" id="userForm">
+              <label>Nama <input name="name" required maxlength="60" /></label>
+              <label>Username <input name="username" required autocomplete="off" maxlength="32" pattern="[A-Za-z0-9._-]{3,32}" title="Gunakan 3-32 karakter: huruf, angka, titik, garis bawah, atau strip." /></label>
+              <label>Password <input name="password" required minlength="6" maxlength="64" type="password" autocomplete="new-password" /></label>
               <label>Role
                 <select name="role">
                   <option value="Admin">Admin</option>
                   <option value="Panitia">Panitia</option>
                 </select>
               </label>
-              <label>Telepon <input name="phone" /></label>
+              <label>Telepon <input name="phone" inputmode="tel" maxlength="20" /></label>
               <label>Status
                 <select name="status">
                   <option value="Aktif">Aktif</option>
@@ -257,11 +261,11 @@
                 <button class="primary-btn" id="addGeneralCouponBtn" type="button">Kupon umum</button>
               </div>
             </div>
-            <form class="coupon-tools" id="couponGenerateForm">
+            <form class="coupon-tools form-card" id="couponGenerateForm">
               <label>Wilayah
                 <select name="areaId" id="couponAreaSelect"></select>
               </label>
-              <label>Jumlah kupon <input name="count" min="1" type="number" value="10" /></label>
+              <label>Jumlah kupon <input name="count" min="1" max="500" type="number" value="10" /></label>
               <label>Kategori
                 <select name="category">
                   <option value="Umum">Umum</option>
@@ -270,8 +274,9 @@
                   <option value="Panitia">Panitia</option>
                 </select>
               </label>
-              <label>Nama penerima <input name="recipientName" placeholder="Opsional untuk kupon umum" /></label>
+              <label>Nama penerima <input name="recipientName" maxlength="70" placeholder="Opsional untuk kupon umum" /></label>
             </form>
+            <p class="input-note">Batas 500 kupon per generate membantu mencegah kupon dobel karena klik berulang.</p>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -297,8 +302,8 @@
               </div>
               <button class="primary-btn" id="scanCouponBtn" type="button">Verifikasi kupon</button>
             </div>
-            <form class="scan-panel" id="scanForm">
-              <label>Kode kupon <input name="couponCode" required placeholder="KPN-0001" /></label>
+            <form class="scan-panel form-card" id="scanForm">
+              <label>Kode kupon <input name="couponCode" required maxlength="16" placeholder="KPN-0001" /></label>
               <label>Nama petugas
                 <select name="officer" id="scanOfficerSelect"></select>
               </label>
@@ -367,10 +372,10 @@
               </div>
               <button class="primary-btn" id="saveProfileBtn" type="button">Simpan profil</button>
             </div>
-            <form class="settings-grid" id="profileForm">
-              <label>Nama akun <input name="name" required /></label>
+            <form class="settings-grid form-card" id="profileForm">
+              <label>Nama akun <input name="name" required maxlength="60" /></label>
               <label>Username <input name="username" readonly /></label>
-              <label>Telepon <input name="phone" /></label>
+              <label>Telepon <input name="phone" inputmode="tel" maxlength="20" /></label>
               <label>Role aktif <input name="role" readonly /></label>
               <label>Status <input name="status" readonly /></label>
             </form>
@@ -417,13 +422,14 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Token</th>
+                    <th>Invoice</th>
                     <th>Nama</th>
                     <th>Telepon</th>
                     <th>Alamat</th>
                     <th>Hewan</th>
                     <th>Iuran</th>
                     <th>Dibayar</th>
+                    <th>Validasi</th>
                     <th>Status</th>
                     <th>Aksi</th>
                   </tr>
@@ -441,29 +447,40 @@
               </div>
               <button class="primary-btn" id="saveDistributionBtn" type="button">Simpan distribusi</button>
             </div>
-            <form class="distribution-grid" id="distributionForm">
-              <label>
-                Paket warga
-                <input name="warga" min="0" type="number" />
-              </label>
-              <label>
-                Paket mustahik
-                <input name="mustahik" min="0" type="number" />
-              </label>
-              <label>
-                Paket panitia
-                <input name="panitia" min="0" type="number" />
-              </label>
-              <label>
-                Paket peserta
-                <input name="peserta" min="0" type="number" />
-              </label>
-              <label class="wide">
-                Catatan distribusi
-                <textarea name="notes" rows="4"></textarea>
-              </label>
-            </form>
-            <div class="distribution-preview">
+            <div class="workflow-tabs" aria-label="Langkah distribusi">
+              <button class="workflow-tab active" data-workflow-tab="distribution" data-workflow-target="summary" type="button">1. Ringkasan paket</button>
+              <button class="workflow-tab" data-workflow-tab="distribution" data-workflow-target="targets" type="button">2. Tujuan distribusi</button>
+              <button class="workflow-tab" data-workflow-tab="distribution" data-workflow-target="recipients" type="button">3. Penerima</button>
+            </div>
+            <div class="workflow-panel active" data-workflow-panel="distribution" data-workflow-name="summary">
+              <form class="distribution-grid form-card" id="distributionForm">
+                <label>
+                  Paket warga
+                  <input name="warga" min="0" max="9999" type="number" />
+                  <small>Jumlah kantung untuk warga sekitar.</small>
+                </label>
+                <label>
+                  Paket mustahik
+                  <input name="mustahik" min="0" max="9999" type="number" />
+                  <small>Prioritas penerima manfaat.</small>
+                </label>
+                <label>
+                  Paket panitia
+                  <input name="panitia" min="0" max="9999" type="number" />
+                  <small>Cadangan operasional panitia.</small>
+                </label>
+                <label>
+                  Paket peserta
+                  <input name="peserta" min="0" max="9999" type="number" />
+                  <small>Hak peserta/shohibul qurban.</small>
+                </label>
+                <label class="wide">
+                  Catatan distribusi
+                  <textarea name="notes" rows="4" maxlength="260"></textarea>
+                </label>
+              </form>
+            </div>
+            <div class="workflow-panel" data-workflow-panel="distribution" data-workflow-name="targets">
               <div class="module-head">
                 <div>
                   <h3>Tujuan distribusi per wilayah/masjid</h3>
@@ -471,10 +488,10 @@
                 </div>
                 <button class="primary-btn" id="addDistributionTargetBtn" type="button">Tambah tujuan</button>
               </div>
-              <form class="distribution-target-form" id="distributionTargetForm">
+              <form class="distribution-target-form form-card" id="distributionTargetForm">
                 <label>
                   Wilayah/Masjid
-                  <input name="destination" list="distributionDestinationList" placeholder="Masjid Al-Ikhlas / RT 01" required />
+                  <input name="destination" list="distributionDestinationList" maxlength="80" placeholder="Masjid Al-Ikhlas / RT 01" required />
                   <datalist id="distributionDestinationList"></datalist>
                 </label>
                 <label>
@@ -490,11 +507,11 @@
                 </label>
                 <label>
                   Jumlah kantung
-                  <input name="bags" min="1" type="number" required />
+                  <input name="bags" min="1" max="9999" type="number" required />
                 </label>
                 <label>
                   PIC
-                  <input name="pic" placeholder="Nama penanggung jawab" />
+                  <input name="pic" maxlength="60" placeholder="Nama penanggung jawab" />
                 </label>
                 <label>
                   Status
@@ -503,39 +520,6 @@
                     <option value="Siap dibagikan">Siap dibagikan</option>
                     <option value="Terjadwal">Terjadwal</option>
                     <option value="Terkirim">Terkirim</option>
-                  </select>
-                </label>
-              </form>
-              <div class="module-head distribution-recipient-head">
-                <div>
-                  <h3>Daftar perorangan dalam wilayah/masjid</h3>
-                  <p>Tambahkan penerima yang berada di bawah tujuan distribusi tertentu.</p>
-                </div>
-                <button class="primary-btn" id="addDistributionRecipientBtn" type="button">Tambah penerima</button>
-              </div>
-              <form class="distribution-recipient-form" id="distributionRecipientForm">
-                <label>
-                  Tujuan
-                  <select name="targetIndex" id="distributionRecipientTargetSelect" required></select>
-                </label>
-                <label>
-                  Nama penerima
-                  <input name="name" required placeholder="Nama warga/penerima" />
-                </label>
-                <label>
-                  Kontak/NIK
-                  <input name="contact" placeholder="Opsional" />
-                </label>
-                <label>
-                  Kantung
-                  <input name="bags" min="1" type="number" required />
-                </label>
-                <label>
-                  Status
-                  <select name="status">
-                    <option value="Belum diambil">Belum diambil</option>
-                    <option value="Sudah diambil">Sudah diambil</option>
-                    <option value="Diantar">Diantar</option>
                   </select>
                 </label>
               </form>
@@ -554,6 +538,42 @@
                   <tbody id="distributionTargetsTable"></tbody>
                 </table>
               </div>
+            </div>
+            <div class="workflow-panel" data-workflow-panel="distribution" data-workflow-name="recipients">
+              <div class="module-head distribution-recipient-head">
+                <div>
+                  <h3>Daftar perorangan dalam wilayah/masjid</h3>
+                  <p>Tambahkan penerima yang berada di bawah tujuan distribusi tertentu.</p>
+                </div>
+                <button class="primary-btn" id="addDistributionRecipientBtn" type="button">Tambah penerima</button>
+              </div>
+              <form class="distribution-recipient-form form-card" id="distributionRecipientForm">
+                <label>
+                  Tujuan
+                  <select name="targetIndex" id="distributionRecipientTargetSelect" required></select>
+                </label>
+                <label>
+                  Nama penerima
+                  <input name="name" required maxlength="70" placeholder="Nama warga/penerima" />
+                </label>
+                <label>
+                  Kontak/NIK
+                  <input name="contact" maxlength="40" placeholder="Opsional" />
+                </label>
+                <label>
+                  Kantung
+                  <input name="bags" min="1" max="99" type="number" required />
+                </label>
+                <label>
+                  Status
+                  <select name="status">
+                    <option value="Belum diambil">Belum diambil</option>
+                    <option value="Sudah diambil">Sudah diambil</option>
+                    <option value="Diantar">Diantar</option>
+                  </select>
+                </label>
+              </form>
+              <p class="input-note">Penerima wajib dipilih dari tujuan distribusi agar data tidak tercecer.</p>
             </div>
           </div>
 
@@ -588,41 +608,50 @@
           <button value="cancel" class="icon-btn" type="submit" formnovalidate aria-label="Tutup">x</button>
         </div>
         <input type="hidden" name="id" />
-        <label>Kode hewan <input name="code" required maxlength="12" /></label>
-        <label>Jenis
-          <select name="type" required>
-            <option value="Sapi">Sapi</option>
-            <option value="Kambing">Kambing</option>
-            <option value="Domba">Domba</option>
-          </select>
-        </label>
-        <label>Bobot kg <input name="weight" required min="1" type="number" /></label>
-        <label>Umur hewan <input name="age" placeholder="Contoh: 2 tahun" /></label>
-        <label>Harga beli <input name="price" required min="0" type="number" /></label>
-        <label>Biaya operasional <input name="cost" required min="0" type="number" /></label>
-        <label>Jadwal sembelih <input name="schedule" type="datetime-local" /></label>
-        <label>Lokasi penitipan <input name="location" placeholder="Kandang / vendor / lokasi sembelih" /></label>
-        <label>Bobot karkas kg <input name="carcassWeight" min="0" step="0.1" type="number" /></label>
-        <label>URL foto hewan <input name="photoUrl" type="text" placeholder="https://... atau hasil upload" /></label>
-        <div class="wide health-grid" aria-label="Checklist kesehatan hewan">
-          <label><input name="brightEyes" type="checkbox" /> Mata cerah</label>
-          <label><input name="healthyCoat" type="checkbox" /> Bulu tidak kusam</label>
-          <label><input name="noDefect" type="checkbox" /> Tidak cacat</label>
-        </div>
-        <label class="wide photo-upload">
-          Upload foto hewan
-          <input id="animalPhotoFile" type="file" accept="image/*" />
-          <span>Foto akan dikompres otomatis sebelum disimpan.</span>
-          <img id="animalPhotoPreview" alt="" />
-        </label>
-        <label>Status
-          <select name="status">
-            <option value="booking">Booking</option>
-            <option value="paid">Lunas</option>
-            <option value="slaughtered">Disembelih</option>
-            <option value="distributed">Distribusi</option>
-          </select>
-        </label>
+        <fieldset>
+          <legend>Identitas hewan</legend>
+          <label>Kode hewan <input name="code" required maxlength="12" pattern="[A-Za-z]{2}-[0-9]{2,4}" title="Format contoh: SP-01, KG-02, DB-03" /></label>
+          <label>Jenis
+            <select name="type" required>
+              <option value="Sapi">Sapi</option>
+              <option value="Kambing">Kambing</option>
+              <option value="Domba">Domba</option>
+            </select>
+          </label>
+          <label>Bobot kg <input name="weight" required min="1" max="2000" step="0.1" type="number" /></label>
+          <label>Umur hewan <input name="age" maxlength="30" placeholder="Contoh: 2 tahun" /></label>
+          <label>Status
+            <select name="status">
+              <option value="booking">Booking</option>
+              <option value="paid">Lunas</option>
+              <option value="slaughtered">Disembelih</option>
+              <option value="distributed">Distribusi</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Biaya dan lokasi</legend>
+          <label>Harga beli <input name="price" required min="0" max="999999999" step="1000" type="number" /></label>
+          <label>Biaya operasional <input name="cost" required min="0" max="999999999" step="1000" type="number" /></label>
+          <label>Jadwal sembelih <input name="schedule" type="datetime-local" /></label>
+          <label>Lokasi penitipan <input name="location" maxlength="100" placeholder="Kandang / vendor / lokasi sembelih" /></label>
+          <label>Bobot karkas kg <input name="carcassWeight" min="0" max="2000" step="0.1" type="number" /></label>
+        </fieldset>
+        <fieldset>
+          <legend>Kesehatan dan foto</legend>
+          <label>URL foto hewan <input name="photoUrl" type="text" maxlength="600" placeholder="https://... atau hasil upload" /></label>
+          <div class="wide health-grid" aria-label="Checklist kesehatan hewan">
+            <label><input name="brightEyes" type="checkbox" /> Mata cerah</label>
+            <label><input name="healthyCoat" type="checkbox" /> Bulu tidak kusam</label>
+            <label><input name="noDefect" type="checkbox" /> Tidak cacat</label>
+          </div>
+          <label class="wide photo-upload">
+            Upload foto hewan
+            <input id="animalPhotoFile" type="file" accept="image/*" />
+            <span>Foto akan dikompres otomatis sebelum disimpan.</span>
+            <img id="animalPhotoPreview" alt="" />
+          </label>
+        </fieldset>
         <div class="dialog-actions">
           <button class="ghost-btn" value="cancel" type="submit" formnovalidate>Batal</button>
           <button class="primary-btn" value="default" id="saveAnimalBtn" type="button">Simpan</button>
@@ -638,26 +667,43 @@
         </div>
         <input type="hidden" name="id" />
         <input type="hidden" name="token" />
-        <label>Nama peserta <input name="name" required /></label>
-        <label>Telepon <input name="phone" required /></label>
-        <label>Alamat <input name="address" required /></label>
-        <label>Pilih hewan <select name="animalId" required></select></label>
-        <label>Paket qurban
-          <select name="packageType">
-            <option value="Patungan sapi">Patungan sapi</option>
-            <option value="Kambing individu">Kambing individu</option>
-            <option value="Domba individu">Domba individu</option>
-          </select>
-        </label>
-        <label>Metode pembayaran
-          <select name="paymentMethod">
-            <option value="Transfer">Transfer</option>
-            <option value="Tunai">Tunai</option>
-            <option value="QRIS">QRIS</option>
-          </select>
-        </label>
-        <label>Iuran wajib <input name="due" required min="0" type="number" /></label>
-        <label>Sudah dibayar <input name="paid" required min="0" type="number" /></label>
+        <fieldset>
+          <legend>Data peserta</legend>
+          <label>Nama peserta <input name="name" required maxlength="70" autocomplete="name" /></label>
+          <label>Telepon <input name="phone" required inputmode="tel" maxlength="20" autocomplete="tel" placeholder="08xxxxxxxxxx" /></label>
+          <label>Alamat <input name="address" required maxlength="140" autocomplete="street-address" /></label>
+        </fieldset>
+        <fieldset>
+          <legend>Paket qurban</legend>
+          <label>Pilih hewan <select name="animalId" required></select></label>
+          <label>Paket qurban
+            <select name="packageType">
+              <option value="Patungan sapi">Patungan sapi</option>
+              <option value="Kambing individu">Kambing individu</option>
+              <option value="Domba individu">Domba individu</option>
+            </select>
+          </label>
+          <label>Metode pembayaran
+            <select name="paymentMethod">
+              <option value="Transfer">Transfer</option>
+              <option value="Tunai">Tunai</option>
+              <option value="QRIS">QRIS</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Pembayaran</legend>
+          <label>Iuran wajib <input name="due" required min="0" max="999999999" step="1000" type="number" /></label>
+          <label>Sudah dibayar <input name="paid" required min="0" max="999999999" step="1000" type="number" /></label>
+          <label>Status validasi
+            <select name="bookingStatus">
+              <option value="Menunggu validasi">Menunggu validasi</option>
+              <option value="Validasi sukses">Validasi sukses</option>
+              <option value="Ditolak">Ditolak</option>
+            </select>
+          </label>
+          <p class="input-note wide">Nilai dibayar tidak boleh lebih besar dari iuran wajib.</p>
+        </fieldset>
         <div class="dialog-actions">
           <button class="ghost-btn" value="cancel" type="submit" formnovalidate>Batal</button>
           <button class="primary-btn" value="default" id="saveParticipantBtn" type="button">Simpan</button>

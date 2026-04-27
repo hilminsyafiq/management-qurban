@@ -39,6 +39,7 @@ function validateParticipant(payload) {
     paymentMethod: String(payload.paymentMethod || "").trim(),
     due: Number(payload.due || 0),
     paid: Number(payload.paid || 0),
+    bookingStatus: String(payload.bookingStatus || "Menunggu validasi").trim(),
   };
 }
 
@@ -54,6 +55,7 @@ function normalizeParticipant(row) {
     paymentMethod: String(row.paymentMethod || ""),
     due: Number(row.due || 0),
     paid: Number(row.paid || 0),
+    bookingStatus: String(row.bookingStatus || "Menunggu validasi"),
     createdAt: row.createdAt || "",
     updatedAt: row.updatedAt || "",
   };

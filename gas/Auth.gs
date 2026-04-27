@@ -1,4 +1,4 @@
-const PUBLIC_GET_ACTIONS = ["publicAnimals"];
+const PUBLIC_GET_ACTIONS = ["publicAnimals", "publicInvoice"];
 
 function requireAdminToken(event, body) {
   const expectedToken = getScriptProperty("ADMIN_TOKEN");
