@@ -263,26 +263,6 @@ const moduleConfigs = {
       field("note", "Catatan"),
     ],
   },
-  committee: {
-    title: "Pengaturan panitia",
-    description: "Struktur panitia dan pembagian tugas.",
-    fields: [
-      field("name", "Nama"),
-      field("role", "Jabatan", { type: "select", options: ["Ketua", "Sekretaris", "Bendahara", "Seksi Hewan", "Seksi Penyembelihan", "Seksi Distribusi", "Dokumentasi"] }),
-      field("phone", "Telepon", { type: "tel" }),
-      field("task", "Tugas", { type: "select", options: ["Koordinasi umum", "Keuangan dan laporan", "Pendataan hewan", "Pendataan peserta", "Distribusi daging", "Dokumentasi", "Logistik"] }),
-    ],
-  },
-  periods: {
-    title: "Periode kurban",
-    description: "Periode pelaksanaan kurban yang aktif.",
-    fields: [
-      field("name", "Periode"),
-      field("start", "Mulai", { type: "date" }),
-      field("end", "Selesai", { type: "date" }),
-      field("status", "Status", { type: "select", options: ["Draft", "Aktif", "Selesai", "Arsip"] }),
-    ],
-  },
   transactions: {
     title: "Transaksi",
     description: "Pemasukan dan pengeluaran operasional.",
@@ -292,26 +272,6 @@ const moduleConfigs = {
       field("category", "Kategori", { type: "select", options: ["Tabungan", "Pembayaran qurban", "Pembelian hewan", "Operasional", "Distribusi", "Donasi", "Lainnya"] }),
       field("amount", "Nominal", { type: "number" }),
       field("note", "Catatan"),
-    ],
-  },
-  meatYield: {
-    title: "Perolehan daging",
-    description: "Hasil sembelihan dan jumlah kantung.",
-    fields: [
-      field("animalCode", "Kode hewan", { type: "select", source: "animals" }),
-      field("carcassWeight", "Bobot karkas", { type: "number", step: "0.1" }),
-      field("bags", "Kantung", { type: "number" }),
-      field("note", "Catatan"),
-    ],
-  },
-  recipients: {
-    title: "Penerima daging",
-    description: "Data penerima paket daging kurban.",
-    fields: [
-      field("name", "Nama/Wilayah/Masjid"),
-      field("category", "Kategori", { type: "select", options: ["Warga", "Mustahik", "Masjid", "Musholla", "Peserta", "Panitia"] }),
-      field("bags", "Kantung", { type: "number" }),
-      field("status", "Status", { type: "select", options: ["Belum diproses", "Siap dibagikan", "Terjadwal", "Terkirim"] }),
     ],
   },
   minutes: {
@@ -348,40 +308,6 @@ function moduleRecipientFromTarget(target) {
     bags: String(Number(target.bags || 0)),
     status: target.status || "Belum diproses",
   };
-}
-
-function upsertDistributionTargetFromModuleRecipient(record, previousRecord = null) {
-  state.distribution = state.distribution || structuredClone(defaultState.distribution);
-  state.distribution.targets = Array.isArray(state.distribution.targets) ? state.distribution.targets : [];
-  const nextName = String(record.name || "").trim();
-  if (!nextName) return;
-
-  const previousKey = previousRecord ? normalizeRecipientKey(previousRecord.name, previousRecord.category) : "";
-  const nextKey = normalizeRecipientKey(record.name, record.category);
-  const target = state.distribution.targets.find((item) => {
-    const itemKey = normalizeRecipientKey(item.destination, item.category);
-    return itemKey === previousKey || itemKey === nextKey;
-  });
-  const nextTarget = {
-    destination: nextName,
-    category: record.category || "Warga",
-    bags: Number(record.bags || 0),
-    status: record.status || "Belum diproses",
-  };
-
-  if (target) {
-    Object.assign(target, nextTarget);
-    target.recipients = Array.isArray(target.recipients) ? target.recipients : [];
-    return;
-  }
-
-  state.distribution.targets.push({ ...nextTarget, pic: "", recipients: [] });
-}
-
-function removeDistributionTargetFromModuleRecipient(record) {
-  if (!record || !state.distribution || !Array.isArray(state.distribution.targets)) return;
-  const key = normalizeRecipientKey(record.name, record.category);
-  state.distribution.targets = state.distribution.targets.filter((target) => normalizeRecipientKey(target.destination, target.category) !== key);
 }
 
 function syncDistributionRecipientsModule() {
@@ -1483,13 +1409,26 @@ function renderDistributionRecipientTargetOptions() {
   }).join("");
 }
 
-function renderDistributionDestinationOptions() {
-  if (!els.distributionDestinationList) return;
-  const destinations = new Set((state.distribution.targets || []).map((target) => target.destination).filter(Boolean));
+function getDistributionDestinationNames() {
+  const destinations = new Set();
+  (state.modules && state.modules.areas || []).forEach((area) => {
+    if (area.name) destinations.add(area.name);
+  });
+  (state.distribution.targets || []).forEach((target) => {
+    if (target.destination) destinations.add(target.destination);
+  });
   (state.modules && state.modules.recipients || []).forEach((recipient) => {
     if (recipient.name) destinations.add(recipient.name);
   });
-  els.distributionDestinationList.innerHTML = [...destinations].map((destination) => `<option value="${escapeHtml(destination)}"></option>`).join("");
+  return [...destinations];
+}
+
+function renderDistributionDestinationOptions() {
+  if (!els.distributionDestinationList) return;
+  const destinations = getDistributionDestinationNames();
+  const placeholder = destinations.length ? "Pilih wilayah" : "Tambah wilayah dulu";
+  els.distributionDestinationList.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>`
+    + destinations.map((destination) => `<option value="${escapeHtml(destination)}">${escapeHtml(destination)}</option>`).join("");
 }
 
 function addDistributionTarget() {
@@ -1890,12 +1829,9 @@ function addModuleRecord(moduleKey) {
     return;
   }
   if (Number.isInteger(editIndex) && editIndex >= 0 && state.modules[moduleKey][editIndex]) {
-    const previousRecord = state.modules[moduleKey][editIndex];
     state.modules[moduleKey][editIndex] = record;
-    applyModuleRecordSideEffects(moduleKey, record, previousRecord);
   } else {
     state.modules[moduleKey].push(record);
-    applyModuleRecordSideEffects(moduleKey, record);
   }
   markDataChange(
     Number.isInteger(editIndex) && editIndex >= 0 ? "Update data modul" : "Tambah data modul",
@@ -1912,23 +1848,6 @@ function isDuplicateModuleRecord(moduleKey, record, editIndex = -1) {
     if (index === editIndex) return false;
     return fields.every((fieldName) => normalizeDuplicateValue(item[fieldName]) === normalizeDuplicateValue(record[fieldName]));
   });
-}
-
-function applyModuleRecordSideEffects(moduleKey, record, previousRecord = null) {
-  if (moduleKey === "recipients") {
-    upsertDistributionTargetFromModuleRecipient(record, previousRecord);
-    syncDistributionRecipientsModule();
-    return;
-  }
-
-  if (moduleKey === "meatYield") {
-    const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
-    if (!animal) return;
-    animal.carcassWeight = Number(record.carcassWeight || animal.carcassWeight || 0);
-    if (animal.status === "booking" || animal.status === "paid") {
-      animal.status = "slaughtered";
-    }
-  }
 }
 
 function editModuleRecord(moduleKey, index) {
@@ -1951,10 +1870,6 @@ function deleteModuleRecord(moduleKey, index) {
   ensureModuleShape();
   const removed = state.modules[moduleKey][index];
   state.modules[moduleKey].splice(index, 1);
-  if (moduleKey === "recipients") {
-    removeDistributionTargetFromModuleRecipient(removed);
-    syncDistributionRecipientsModule();
-  }
   markDataChange("Hapus data modul", `${moduleConfigs[moduleKey].title}: ${removed ? Object.values(removed).find(Boolean) : index}`);
   render();
 }
@@ -2646,7 +2561,6 @@ document.querySelector("#addDistributionRecipientBtn").addEventListener("click",
 document.querySelector("#saveModulesBtn").addEventListener("click", saveModules);
 document.querySelector("#printSavingsBtn").addEventListener("click", () => printModuleReport("Laporan Tabungan Kurban", state.modules && state.modules.savings));
 document.querySelector("#printTransactionsBtn").addEventListener("click", () => printModuleReport("Laporan Transaksi Kurban", state.modules && state.modules.transactions));
-document.querySelector("#printMeatYieldBtn").addEventListener("click", () => printModuleReport("Laporan Perolehan Daging Kurban", state.modules && state.modules.meatYield));
 document.querySelector("#saveSettingsBtn").addEventListener("click", saveSettings);
 document.querySelector("#addAreaBtn").addEventListener("click", addArea);
 document.querySelector("#addUserBtn").addEventListener("click", addUser);
@@ -2779,11 +2693,18 @@ document.addEventListener("click", (event) => {
   if (deleteDistributionRecipientTarget !== undefined) deleteDistributionRecipient(Number(deleteDistributionRecipientTarget), Number(deleteDistributionRecipientIndex));
   if (deleteAreaId) {
     if (!window.confirm("Hapus wilayah ini? Kupon yang memakai wilayah ini akan kehilangan referensi wilayah.")) return;
+    const removedArea = state.modules.areas.find((area) => area.id === deleteAreaId);
     state.modules.areas = state.modules.areas.filter((area) => area.id !== deleteAreaId);
     state.modules.coupons.forEach((coupon) => {
       if (coupon.areaId === deleteAreaId) coupon.areaId = "";
     });
-    markDataChange("Hapus wilayah", deleteAreaId);
+    if (removedArea) {
+      const removedKey = String(removedArea.name || "").trim().toLowerCase();
+      state.distribution.targets = (state.distribution.targets || []).filter((target) => String(target.destination || "").trim().toLowerCase() !== removedKey);
+      state.modules.recipients = (state.modules.recipients || []).filter((recipient) => String(recipient.name || "").trim().toLowerCase() !== removedKey);
+      syncDistributionRecipientsModule();
+    }
+    markDataChange("Hapus wilayah", removedArea ? removedArea.name : deleteAreaId);
     render();
   }
   if (deleteUserId) {
