@@ -624,6 +624,58 @@ select {
   gap: 10px;
 }
 
+.public-status-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+}
+
+.public-status-board article {
+  min-height: 84px;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--panel-soft);
+}
+
+.public-status-board span,
+.public-status-board small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.public-status-board strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--accent-dark);
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.public-progress {
+  grid-column: 1 / -1;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #dfe8e2;
+}
+
+.public-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #2b82a0);
+}
+
+.public-status-board small {
+  grid-column: 1 / -1;
+  line-height: 1.45;
+}
+
 .distribution-targets h3 {
   margin: 0 0 4px;
   font-size: 22px;
@@ -755,6 +807,7 @@ select {
   .invoice-check-form,
   .distribution-section,
   .distribution-grid,
+  .public-status-board,
   .package-grid,
   .gallery-grid,
   .testimonial-grid,

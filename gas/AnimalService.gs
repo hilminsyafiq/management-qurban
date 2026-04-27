@@ -38,6 +38,8 @@ function validateAnimal(payload) {
     healthyCoat: payload.healthyCoat === true || payload.healthyCoat === "TRUE" || payload.health && payload.health.healthyCoat === true,
     noDefect: payload.noDefect === true || payload.noDefect === "TRUE" || payload.health && payload.health.noDefect === true,
     photoUrl: payload.photoUrl || "",
+    createdAt: toUtcIso(payload.createdAt),
+    updatedAt: toUtcIso(payload.updatedAt),
   };
 }
 
@@ -51,7 +53,7 @@ function normalizeAnimal(row) {
     price: Number(row.price || 0),
     cost: Number(row.cost || 0),
     status: String(row.status || "booking"),
-    schedule: row.schedule ? String(row.schedule) : "",
+    schedule: toDateOnly(row.schedule),
     location: String(row.location || ""),
     carcassWeight: Number(row.carcassWeight || 0),
     health: {
@@ -60,8 +62,8 @@ function normalizeAnimal(row) {
       noDefect: row.noDefect === true || row.noDefect === "TRUE",
     },
     photoUrl: row.photoUrl ? String(row.photoUrl) : "",
-    createdAt: row.createdAt || "",
-    updatedAt: row.updatedAt || "",
+    createdAt: toUtcIso(row.createdAt),
+    updatedAt: toUtcIso(row.updatedAt),
   };
 }
 

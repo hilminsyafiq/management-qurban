@@ -110,15 +110,23 @@ const defaultState = {
     ],
     users: [
       { id: crypto.randomUUID(), name: "Admin Qurban", username: "admin", password: "admin123", role: "Admin", phone: "0812-9000-1111", status: "Aktif" },
-      { id: crypto.randomUUID(), name: "Petugas Scan", username: "panitia", password: "panitia123", role: "Panitia", phone: "0812-9000-2222", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Bendahara Qurban", username: "bendahara", password: "bendahara123", role: "Bendahara", phone: "0812-9000-2223", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Koordinator Distribusi", username: "distribusi", password: "distribusi123", role: "Distribusi", phone: "0812-9000-2224", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Petugas Scan", username: "scanner", password: "scanner123", role: "Scanner", phone: "0812-9000-2222", status: "Aktif" },
     ],
     coupons: [],
     scanHistory: [],
+    auditLog: [],
     profile: {
       name: "Admin Qurban",
       phone: "0812-9000-1111",
       status: "Aktif",
     },
+  },
+  meta: {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "system",
   },
 };
 
@@ -167,6 +175,16 @@ defaultState.participants = [
 let state = loadState();
 let syncTimer = null;
 let activeRole = "admin";
+let scannerStream = null;
+let scannerTimer = null;
+let lastLoadedVersion = Number(state.meta && state.meta.version || 1);
+const ROLE_LABELS = {
+  admin: "Admin penuh",
+  bendahara: "Bendahara",
+  distribusi: "Distribusi",
+  scanner: "Scanner",
+  panitia: "Panitia",
+};
 
 const els = {
   navItems: document.querySelectorAll(".nav-item"),
@@ -207,9 +225,13 @@ const els = {
   scanForm: document.querySelector("#scanForm"),
   scanOfficerSelect: document.querySelector("#scanOfficerSelect"),
   scanResult: document.querySelector("#scanResult"),
+  scannerVideo: document.querySelector("#scannerVideo"),
+  scannerStatus: document.querySelector("#scannerStatus"),
   scanHistoryTable: document.querySelector("#scanHistoryTable"),
   reportStats: document.querySelector("#reportStats"),
   reportsTable: document.querySelector("#reportsTable"),
+  auditLogTable: document.querySelector("#auditLogTable"),
+  couponImportFile: document.querySelector("#couponImportFile"),
   profileForm: document.querySelector("#profileForm"),
   adminLoginDialog: document.querySelector("#adminLoginDialog"),
   adminLoginForm: document.querySelector("#adminLoginForm"),
@@ -311,15 +333,16 @@ function field(name, label, options = {}) {
 function ensureOpsShape() {
   ensureModuleShape();
   const defaults = defaultState.modules;
+  state.meta = { ...(defaultState.meta || {}), ...(state.meta || {}) };
   state.modules.appSettings = { ...defaults.appSettings, ...(state.modules.appSettings || {}) };
   state.modules.profile = { ...defaults.profile, ...(state.modules.profile || {}) };
-  ["areas", "users", "coupons", "scanHistory"].forEach((key) => {
+  ["areas", "users", "coupons", "scanHistory", "auditLog"].forEach((key) => {
     if (!Array.isArray(state.modules[key])) state.modules[key] = structuredClone(defaults[key]);
   });
   state.modules.users = state.modules.users.map((user, index) => ({
     ...user,
     username: user.username || String(user.role || "").toLowerCase() || `user${index + 1}`,
-    password: user.password || (String(user.role || "").toLowerCase() === "admin" ? "admin123" : "panitia123"),
+    password: user.password || `${normalizeRole(user.role || "panitia")}123`,
     status: user.status || "Aktif",
   }));
 }
@@ -336,8 +359,81 @@ function loadState() {
 }
 
 function saveState() {
+  const current = readStoredState();
+  const currentVersion = Number(current && current.meta && current.meta.version || 0);
+  const stateVersion = Number(state.meta && state.meta.version || 0);
+  if (currentVersion > stateVersion && !window.confirm("Data di perangkat ini sudah berubah dari tab lain. Tetap simpan dan timpa perubahan terbaru?")) {
+    state = current;
+    lastLoadedVersion = currentVersion;
+    return;
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  lastLoadedVersion = Number(state.meta && state.meta.version || lastLoadedVersion);
   scheduleRemoteSync();
+}
+
+function readStoredState() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function toIsoTimestamp(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value).trim() : date.toISOString();
+}
+
+function toDateOnly(value) {
+  if (!value) return "";
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return text;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDatePayload(value) {
+  if (Array.isArray(value)) return value.map(normalizeDatePayload);
+  if (!value || typeof value !== "object" || value instanceof Date) return value;
+
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    if (["createdAt", "updatedAt", "scannedAt", "at"].includes(key)) return [key, toIsoTimestamp(item)];
+    if (["date", "start", "end", "schedule"].includes(key)) return [key, toDateOnly(item)];
+    return [key, normalizeDatePayload(item)];
+  }));
+}
+
+function makeSyncPayload() {
+  return normalizeDatePayload(structuredClone(state));
+}
+
+function markDataChange(action, detail = "") {
+  ensureOpsShape();
+  const account = getActiveAccount() || makeMasterAccount("admin");
+  const nextVersion = Math.max(Number(state.meta.version || 0), lastLoadedVersion) + 1;
+  state.meta = {
+    version: nextVersion,
+    updatedAt: new Date().toISOString(),
+    updatedBy: account.username || account.name || "admin",
+  };
+  state.modules.auditLog = state.modules.auditLog || [];
+  state.modules.auditLog.unshift({
+    id: crypto.randomUUID(),
+    at: state.meta.updatedAt,
+    user: account.name || account.username || "Admin Qurban",
+    username: account.username || "admin",
+    role: account.role || "Admin",
+    action,
+    detail,
+    version: nextVersion,
+  });
+  state.modules.auditLog = state.modules.auditLog.slice(0, 500);
 }
 
 function getApiBaseUrl() {
@@ -407,7 +503,9 @@ async function loadRemoteState() {
       participants: Array.isArray(data.participants) ? data.participants : [],
       distribution: data.distribution || structuredClone(defaultState.distribution),
       modules: data.modules || structuredClone(defaultState.modules),
+      meta: data.meta || { ...defaultState.meta, version: Date.now() },
     };
+    lastLoadedVersion = Number(state.meta && state.meta.version || 1);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
   } catch (error) {
@@ -423,7 +521,7 @@ function scheduleRemoteSync() {
 
 async function syncRemoteState() {
   try {
-    await fetch(getApiBaseUrl(), {
+    const response = await fetch(getApiBaseUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -432,9 +530,24 @@ async function syncRemoteState() {
       },
       body: JSON.stringify({
         action: "syncState",
-        payload: state,
+        payload: makeSyncPayload(),
+        baseVersion: lastLoadedVersion,
       }),
     });
+    const data = await response.json();
+    if (data && data.conflict && data.state) {
+      alert("Sinkronisasi ditahan karena ada perubahan dari panitia lain. Data terbaru akan dimuat agar tidak saling menimpa.");
+      state = {
+        animals: Array.isArray(data.state.animals) ? data.state.animals : [],
+        participants: Array.isArray(data.state.participants) ? data.state.participants : [],
+        distribution: data.state.distribution || structuredClone(defaultState.distribution),
+        modules: data.state.modules || structuredClone(defaultState.modules),
+        meta: data.state.meta || { ...defaultState.meta, version: Date.now() },
+      };
+      lastLoadedVersion = Number(state.meta && state.meta.version || 1);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      render();
+    }
   } catch (error) {
     // Local data remains available when the backend is temporarily unreachable.
   }
@@ -462,7 +575,9 @@ async function verifyAdminPassword(password, username = "") {
     participants: Array.isArray(data.participants) ? data.participants : [],
     distribution: data.distribution || structuredClone(defaultState.distribution),
     modules: data.modules || structuredClone(defaultState.modules),
+    meta: data.meta || { ...defaultState.meta, version: Date.now() },
   };
+  lastLoadedVersion = Number(state.meta && state.meta.version || 1);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   ensureOpsShape();
   return findLocalAccount(username, password) || makeMasterAccount(username);
@@ -490,7 +605,12 @@ async function requireAdminLogin() {
 }
 
 function normalizeRole(role) {
-  return String(role || "").toLowerCase() === "admin" ? "admin" : "panitia";
+  const normalized = String(role || "").trim().toLowerCase();
+  if (["admin", "bendahara", "distribusi", "scanner", "panitia"].includes(normalized)) return normalized;
+  if (normalized.includes("bendahara")) return "bendahara";
+  if (normalized.includes("distribusi")) return "distribusi";
+  if (normalized.includes("scan")) return "scanner";
+  return normalized === "admin penuh" ? "admin" : "panitia";
 }
 
 function makeMasterAccount(username) {
@@ -553,7 +673,9 @@ function render() {
   renderUsersTable();
   renderCouponsView();
   renderScanView();
+  renderScanHistory();
   renderReportsView();
+  renderAuditLog();
   renderProfileForm();
   renderAnimalBoard();
   renderAnimalsTable();
@@ -690,7 +812,12 @@ function renderCouponsView() {
       <td>${escapeHtml(getAreaName(coupon.areaId))}</td>
       <td>${escapeHtml(coupon.category)}</td>
       <td><span class="badge ${coupon.status === "Sudah diterima" ? "" : "warn"}">${escapeHtml(coupon.status)}</span></td>
-      <td><button class="link-btn danger" data-delete-coupon="${escapeHtml(coupon.id)}" type="button">Hapus</button></td>
+      <td>
+        <div class="row-actions">
+          <button class="link-btn" data-print-coupon="${escapeHtml(coupon.id)}" type="button">Cetak</button>
+          <button class="link-btn danger" data-delete-coupon="${escapeHtml(coupon.id)}" type="button">Hapus</button>
+        </div>
+      </td>
     </tr>
   `).join("") : '<tr><td colspan="6">Belum ada kupon.</td></tr>';
 }
@@ -713,6 +840,20 @@ function renderScanHistory() {
       <td><span class="badge ${scan.status === "Ditolak" ? "danger" : ""}">${escapeHtml(scan.status)}</span></td>
     </tr>
   `).join("") : '<tr><td colspan="6">Belum ada riwayat scan.</td></tr>';
+}
+
+function renderAuditLog() {
+  if (!els.auditLogTable) return;
+  const logs = state.modules.auditLog || [];
+  els.auditLogTable.innerHTML = logs.length ? logs.map((log) => `
+    <tr>
+      <td>${escapeHtml(formatDateTime(log.at))}</td>
+      <td><strong>${escapeHtml(log.user || log.username || "-")}</strong></td>
+      <td>${escapeHtml(log.role || "-")}</td>
+      <td>${escapeHtml(log.action || "-")}</td>
+      <td>${escapeHtml(log.detail || "-")}</td>
+    </tr>
+  `).join("") : '<tr><td colspan="5">Belum ada perubahan data.</td></tr>';
 }
 
 function renderReportsView() {
@@ -1029,6 +1170,7 @@ async function saveAnimal() {
   else state.animals.push(animal);
 
   els.animalDialog.close();
+  markDataChange(index >= 0 ? "Update hewan" : "Tambah hewan", `${animal.code} - ${animal.type}`);
   render();
 }
 
@@ -1103,6 +1245,7 @@ function saveParticipant() {
   else state.participants.push(participant);
 
   els.participantDialog.close();
+  markDataChange(index >= 0 ? "Update peserta" : "Tambah peserta", `${participant.token} - ${participant.name}`);
   render();
 }
 
@@ -1116,6 +1259,7 @@ function saveDistribution() {
     notes: data.notes.trim(),
     targets: state.distribution.targets || [],
   };
+  markDataChange("Update distribusi", "Ringkasan paket distribusi diperbarui.");
   render();
 }
 
@@ -1181,6 +1325,7 @@ function addDistributionTarget() {
     recipients: [],
   });
   form.reset();
+  markDataChange("Tambah tujuan distribusi", data.destination.trim());
   render();
 }
 
@@ -1201,6 +1346,7 @@ function addDistributionRecipient() {
     status: data.status,
   });
   form.reset();
+  markDataChange("Tambah penerima distribusi", `${data.name.trim()} - ${target.destination}`);
   render();
 }
 
@@ -1208,14 +1354,18 @@ function deleteDistributionRecipient(targetIndex, recipientIndex) {
   const target = state.distribution.targets[targetIndex];
   if (!target || !target.recipients) return;
   if (!window.confirm("Hapus penerima ini dari daftar distribusi?")) return;
+  const removed = target.recipients[recipientIndex];
   target.recipients.splice(recipientIndex, 1);
+  markDataChange("Hapus penerima distribusi", removed ? removed.name : `Index ${recipientIndex}`);
   render();
 }
 
 function deleteDistributionTarget(index) {
   state.distribution.targets = state.distribution.targets || [];
   if (!window.confirm("Hapus tujuan distribusi ini beserta penerima di bawahnya?")) return;
+  const removed = state.distribution.targets[index];
   state.distribution.targets.splice(index, 1);
+  markDataChange("Hapus tujuan distribusi", removed ? removed.destination : `Index ${index}`);
   render();
 }
 
@@ -1295,6 +1445,7 @@ function renderModuleFieldControl(moduleField) {
 
 function saveModules() {
   ensureModuleShape();
+  markDataChange("Simpan modul teknis", "Data modul teknis diperiksa dan disimpan.");
   render();
 }
 
@@ -1514,13 +1665,16 @@ function addModuleRecord(moduleKey) {
 
   ensureModuleShape();
   state.modules[moduleKey].push(record);
+  markDataChange("Tambah data modul", `${moduleConfigs[moduleKey].title}: ${Object.values(record).find(Boolean) || "record baru"}`);
   render();
 }
 
 function deleteModuleRecord(moduleKey, index) {
   if (!window.confirm("Hapus data modul ini? Data akan hilang dari penyimpanan lokal.")) return;
   ensureModuleShape();
+  const removed = state.modules[moduleKey][index];
   state.modules[moduleKey].splice(index, 1);
+  markDataChange("Hapus data modul", `${moduleConfigs[moduleKey].title}: ${removed ? Object.values(removed).find(Boolean) : index}`);
   render();
 }
 
@@ -1530,13 +1684,17 @@ function deleteAnimal(animalId) {
     return;
   }
   if (!window.confirm("Hapus data hewan ini? Data akan hilang dari penyimpanan lokal.")) return;
+  const removed = state.animals.find((animal) => animal.id === animalId);
   state.animals = state.animals.filter((animal) => animal.id !== animalId);
+  markDataChange("Hapus hewan", removed ? removed.code : animalId);
   render();
 }
 
 function deleteParticipant(participantId) {
   if (!window.confirm("Hapus data peserta ini? Data akan hilang dari penyimpanan lokal.")) return;
+  const removed = state.participants.find((participant) => participant.id === participantId);
   state.participants = state.participants.filter((participant) => participant.id !== participantId);
+  markDataChange("Hapus peserta", removed ? `${removed.token} - ${removed.name}` : participantId);
   render();
 }
 
@@ -1544,6 +1702,7 @@ function setParticipantValidation(participantId, bookingStatus) {
   const participant = state.participants.find((item) => item.id === participantId);
   if (!participant) return;
   participant.bookingStatus = bookingStatus;
+  markDataChange("Validasi booking", `${participant.token || "-"} - ${participant.name}: ${bookingStatus}`);
   render();
 }
 
@@ -1577,6 +1736,7 @@ function saveSettings() {
     appStatus: data.appStatus,
     notes: data.notes.trim(),
   };
+  markDataChange("Update pengaturan", state.modules.appSettings.institutionName);
   render();
 }
 
@@ -1598,6 +1758,7 @@ function addArea() {
     notes: data.notes.trim(),
   });
   els.areaForm.reset();
+  markDataChange("Tambah wilayah", data.name.trim());
   render();
 }
 
@@ -1621,6 +1782,7 @@ function addUser() {
     status: data.status,
   });
   els.userForm.reset();
+  markDataChange("Tambah user", `${data.username.trim()} - ${data.role}`);
   render();
 }
 
@@ -1657,6 +1819,7 @@ function generateCoupons() {
       source: "generated",
     }));
   }
+  markDataChange("Generate kupon", `${count} kupon kategori ${data.category}.`);
   render();
 }
 
@@ -1668,6 +1831,7 @@ function addGeneralCoupon() {
     category: "Umum",
     source: "general",
   }));
+  markDataChange("Tambah kupon umum", data.recipientName.trim() || "Kupon umum");
   render();
 }
 
@@ -1685,7 +1849,205 @@ function importParticipantCoupons() {
     }));
     existingNames.add(key);
   });
+  markDataChange("Import kupon pengkurban", `${state.participants.length} peserta dicek sebagai sumber kupon.`);
   render();
+}
+
+function qrImageUrl(code) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(String(code || "").trim().toUpperCase())}`;
+}
+
+function printCouponTemplates(couponIds) {
+  const ids = Array.isArray(couponIds) ? couponIds : [];
+  const coupons = ids.length ? state.modules.coupons.filter((coupon) => ids.includes(coupon.id)) : state.modules.coupons;
+  if (!coupons.length) {
+    alert("Belum ada kupon untuk dicetak.");
+    return;
+  }
+
+  const settings = state.modules.appSettings || {};
+  const title = `Kupon Distribusi - ${settings.institutionName || "QurbanOps"}`;
+  const cards = coupons.map((coupon) => `
+    <article class="coupon">
+      <div>
+        <span class="brand">${escapeHtml(settings.institutionName || "QurbanOps")}</span>
+        <h2>Kupon Distribusi Daging</h2>
+        <small>${escapeHtml(settings.qurbanYear || "Idul Adha")}</small>
+      </div>
+      <img src="${qrImageUrl(coupon.code)}" alt="QR ${escapeHtml(coupon.code)}" />
+      <dl>
+        <dt>Kode</dt><dd>${escapeHtml(coupon.code)}</dd>
+        <dt>Penerima</dt><dd>${escapeHtml(coupon.recipientName || "Kupon umum")}</dd>
+        <dt>Kategori</dt><dd>${escapeHtml(coupon.category || "-")}</dd>
+        <dt>Wilayah</dt><dd>${escapeHtml(getAreaName(coupon.areaId))}</dd>
+      </dl>
+      <footer>Tunjukkan QR ini kepada petugas scanner. Kupon hanya berlaku satu kali.</footer>
+    </article>
+  `).join("");
+
+  const report = window.open("", "_blank", "width=980,height=720");
+  if (!report) return;
+  report.document.write(`
+    <!doctype html>
+    <html lang="id">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; font-family: Arial, sans-serif; color: #17231f; }
+          main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8mm; }
+          .coupon { min-height: 132mm; border: 1.5px solid #0b3d34; border-radius: 8px; padding: 12px; display: grid; gap: 9px; break-inside: avoid; }
+          .brand { color: #5f6b66; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+          h2 { margin: 2px 0 0; font-size: 20px; }
+          small, footer, dt { color: #5f6b66; }
+          img { width: 42mm; height: 42mm; place-self: center; border: 1px solid #d6e0d8; border-radius: 8px; }
+          dl { display: grid; grid-template-columns: 76px 1fr; gap: 6px 10px; margin: 0; font-size: 13px; }
+          dt { font-weight: 800; }
+          dd { margin: 0; font-weight: 800; }
+          footer { border-top: 1px dashed #aebfb5; padding-top: 8px; font-size: 11px; line-height: 1.35; }
+          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body><main>${cards}</main></body>
+    </html>
+  `);
+  report.document.close();
+  report.focus();
+  report.print();
+}
+
+function parseDelimited(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  const delimiter = text.includes("\t") && !text.includes(",") ? "\t" : ",";
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === delimiter && !quoted) {
+      row.push(cell);
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      if (row.some((value) => value.trim())) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell);
+  if (row.some((value) => value.trim())) rows.push(row);
+  return rows;
+}
+
+async function loadXlsxLibrary() {
+  if (window.XLSX) return window.XLSX;
+  await new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Library pembaca Excel gagal dimuat. Simpan file sebagai CSV jika perangkat sedang offline."));
+    document.head.appendChild(script);
+  });
+  return window.XLSX;
+}
+
+async function readImportRows(file) {
+  const extension = file.name.split(".").pop().toLowerCase();
+  if (["xlsx", "xls"].includes(extension)) {
+    const XLSX = await loadXlsxLibrary();
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  }
+  return parseDelimited(await file.text());
+}
+
+function normalizeHeader(value) {
+  return String(value || "").trim().toLowerCase().replaceAll(" ", "").replaceAll("_", "");
+}
+
+function rowValue(row, headers, names) {
+  const index = names.map(normalizeHeader).map((name) => headers.indexOf(name)).find((item) => item >= 0);
+  return index >= 0 ? String(row[index] || "").trim() : "";
+}
+
+async function importCouponsOrParticipantsFile(file) {
+  if (!file) return;
+  const rows = await readImportRows(file);
+  if (rows.length < 2) {
+    alert("File import belum berisi data.");
+    return;
+  }
+
+  const headers = rows[0].map(normalizeHeader);
+  const defaultArea = state.modules.areas[0] ? state.modules.areas[0].id : "";
+  let couponCount = 0;
+  let participantCount = 0;
+  const existingCouponCodes = new Set(state.modules.coupons.map((coupon) => String(coupon.code || "").toUpperCase()));
+
+  rows.slice(1).forEach((row) => {
+    const name = rowValue(row, headers, ["nama", "namapeserta", "penerima", "recipient", "recipientname"]);
+    const phone = rowValue(row, headers, ["telepon", "hp", "whatsapp", "phone"]);
+    const category = rowValue(row, headers, ["kategori", "category"]);
+    const couponCode = rowValue(row, headers, ["kode", "kodekupon", "coupon", "couponcode"]);
+    const invoice = rowValue(row, headers, ["invoice", "token", "notagihan"]);
+    const animalCode = rowValue(row, headers, ["hewan", "kodehewan", "animal"]);
+    const due = rowValue(row, headers, ["iuran", "due", "tagihan"]);
+    const paid = rowValue(row, headers, ["dibayar", "paid", "bayar"]);
+
+    if (invoice || phone || animalCode) {
+      const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === animalCode.toUpperCase()) || state.animals[0];
+      if (name && animal) {
+        state.participants.push({
+          id: crypto.randomUUID(),
+          token: invoice || nextParticipantToken(),
+          name,
+          phone,
+          address: rowValue(row, headers, ["alamat", "address"]) || "-",
+          animalId: animal.id,
+          packageType: rowValue(row, headers, ["paket", "packagetype"]) || (animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`),
+          paymentMethod: rowValue(row, headers, ["metode", "paymentmethod"]) || "Transfer",
+          due: Number(String(due || suggestDue(animal.id)).replace(/\D/g, "")),
+          paid: Number(String(paid || 0).replace(/\D/g, "")),
+          bookingStatus: rowValue(row, headers, ["validasi", "bookingstatus"]) || "Menunggu validasi",
+        });
+        participantCount += 1;
+      }
+      return;
+    }
+
+    if (!name && !couponCode) return;
+    const code = couponCode ? couponCode.toUpperCase() : nextCouponCode();
+    if (existingCouponCodes.has(code)) return;
+    state.modules.coupons.push({
+      id: crypto.randomUUID(),
+      code,
+      recipientName: name,
+      areaId: defaultArea,
+      category: category || "Umum",
+      source: "excel",
+      status: rowValue(row, headers, ["status"]) || "Belum diambil",
+      createdAt: new Date().toISOString(),
+    });
+    existingCouponCodes.add(code);
+    couponCount += 1;
+  });
+
+  markDataChange("Import Excel/CSV", `${couponCount} kupon dan ${participantCount} peserta berhasil diimpor dari ${file.name}.`);
+  render();
+  alert(`Import selesai: ${couponCount} kupon, ${participantCount} peserta.`);
 }
 
 function scanCoupon() {
@@ -1721,39 +2083,158 @@ function scanCoupon() {
 
   state.modules.scanHistory.push(scan);
   els.scanForm.reset();
+  markDataChange("Scan kupon", `${scan.couponCode}: ${scan.status}`);
   render();
 }
 
+async function startScanner() {
+  if (!els.scannerVideo || !els.scannerStatus) return;
+  if (!("BarcodeDetector" in window)) {
+    els.scannerStatus.textContent = "Browser ini belum mendukung BarcodeDetector. Pakai Chrome/Edge terbaru atau input kode manual.";
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    els.scannerStatus.textContent = "Perangkat tidak memberi akses kamera. Input manual tetap bisa digunakan.";
+    return;
+  }
+
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    els.scannerVideo.srcObject = scannerStream;
+    await els.scannerVideo.play();
+    els.scannerStatus.textContent = "Kamera aktif. Arahkan QR kupon ke tengah layar.";
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const scanFrame = async () => {
+      if (!scannerStream) return;
+      try {
+        const codes = await detector.detect(els.scannerVideo);
+        const value = codes && codes[0] && codes[0].rawValue ? codes[0].rawValue.trim().toUpperCase() : "";
+        if (value) {
+          els.scanForm.elements.couponCode.value = value;
+          els.scannerStatus.textContent = `QR terbaca: ${value}. Memverifikasi kupon...`;
+          scanCoupon();
+          stopScanner();
+          return;
+        }
+      } catch {
+        // Continue scanning; intermittent decode failures are normal while the camera moves.
+      }
+      scannerTimer = window.setTimeout(scanFrame, 350);
+    };
+    scanFrame();
+  } catch (error) {
+    els.scannerStatus.textContent = error.message || "Kamera tidak dapat dibuka. Periksa izin kamera browser.";
+  }
+}
+
+function stopScanner() {
+  window.clearTimeout(scannerTimer);
+  scannerTimer = null;
+  if (scannerStream) {
+    scannerStream.getTracks().forEach((track) => track.stop());
+    scannerStream = null;
+  }
+  if (els.scannerVideo) els.scannerVideo.srcObject = null;
+  if (els.scannerStatus) els.scannerStatus.textContent = "Kamera berhenti. Scanner bisa dinyalakan lagi saat dibutuhkan.";
+}
+
 function downloadCouponsReport() {
-  const rows = [["Kode", "Penerima", "Wilayah", "Kategori", "Status", "Petugas", "Waktu Scan"]];
-  state.modules.coupons.forEach((coupon) => {
-    rows.push([
-      coupon.code,
-      coupon.recipientName || "Kupon umum",
-      getAreaName(coupon.areaId),
-      coupon.category,
-      coupon.status,
-      coupon.officer || "",
-      coupon.scannedAt ? formatDateTime(coupon.scannedAt) : "",
-    ]);
-  });
-  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const settings = state.modules.appSettings || {};
+  const rows = state.modules.coupons.map((coupon) => [
+    coupon.code,
+    coupon.recipientName || "Kupon umum",
+    getAreaName(coupon.areaId),
+    coupon.category,
+    coupon.status,
+    coupon.officer || "",
+    coupon.scannedAt ? formatDateTime(coupon.scannedAt) : "",
+  ]);
+  const html = makeReportWorkbook(
+    `Laporan Kupon Distribusi - ${settings.institutionName || "QurbanOps"}`,
+    ["Kode", "Penerima", "Wilayah", "Kategori", "Status", "Petugas", "Waktu Scan"],
+    rows,
+  );
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "laporan-kupon-qurban.csv";
+  link.download = "laporan-kupon-qurban.xls";
   link.click();
   URL.revokeObjectURL(link.href);
 }
 
 function printDistributionReport() {
   const settings = state.modules.appSettings;
-  const lines = state.modules.areas.map((area) => {
+  const rows = state.modules.areas.map((area) => {
     const coupons = state.modules.coupons.filter((coupon) => coupon.areaId === area.id);
     const used = coupons.filter((coupon) => coupon.status === "Sudah diterima").length;
-    return `${area.name}: ${used}/${coupons.length} kupon diterima`;
+    return [area.name, area.quota || 0, coupons.length, used, Math.max(0, coupons.length - used)];
   });
-  printModuleReport(`Laporan Pembagian Daging - ${settings.institutionName}`, lines.join("\n"));
+  printTableReport(
+    `Laporan Pembagian Daging - ${settings.institutionName}`,
+    ["Wilayah", "Target", "Kupon", "Sudah diterima", "Sisa"],
+    rows,
+  );
+}
+
+function makeReportWorkbook(title, headers, rows) {
+  return `
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <table border="1">
+          <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+function printTableReport(title, headers, rows) {
+  const report = window.open("", "_blank", "width=960,height=720");
+  if (!report) return;
+  report.document.write(`
+    <!doctype html>
+    <html lang="id">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4; margin: 14mm; }
+          body { font-family: Arial, sans-serif; color: #17231f; }
+          h1 { margin: 0 0 6px; font-size: 22px; }
+          p { margin: 0 0 18px; color: #5f6b66; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #cbd8d0; padding: 9px; text-align: left; }
+          th { background: #e8f4ee; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <p>Dicetak ${escapeHtml(formatDateTime(new Date().toISOString()))}</p>
+        <table>
+          <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  report.document.close();
+  report.focus();
+  report.print();
+}
+
+function exportAuditLog() {
+  const logs = state.modules.auditLog || [];
+  const rows = logs.map((log) => [formatDateTime(log.at), log.user || log.username || "-", log.role || "-", log.action || "-", log.detail || "-"]);
+  const html = makeReportWorkbook("Audit Log QurbanOps", ["Waktu", "User", "Role", "Aksi", "Detail"], rows);
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "audit-log-qurban.xls";
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function saveProfile() {
@@ -1771,12 +2252,13 @@ function saveProfile() {
       setActiveAccount(user);
     }
   }
+  markDataChange("Update profil", state.modules.profile.name);
   render();
 }
 
 function setActiveRole(role) {
   const account = getActiveAccount();
-  if (account && normalizeRole(account.role) !== "admin" && role === "admin") return;
+  if (account && normalizeRole(account.role) !== "admin" && role !== normalizeRole(account.role)) return;
   activeRole = role;
   render();
 }
@@ -1793,7 +2275,9 @@ function applyRoleAccess() {
     item.hidden = !allowed;
   });
   if (els.activeRoleNote) {
-    els.activeRoleNote.textContent = `Mode aktif: ${activeRole === "admin" ? "Admin" : "Panitia"}. Data tersimpan otomatis di browser perangkat ini.`;
+    const label = ROLE_LABELS[activeRole] || "Panitia";
+    const syncText = state.meta && state.meta.version ? ` Versi data: ${state.meta.version}.` : "";
+    els.activeRoleNote.textContent = `Mode aktif: ${label}. Data tersimpan otomatis di browser perangkat ini.${syncText}`;
   }
   const activeNav = [...els.navItems].find((item) => item.classList.contains("active") && !item.hidden);
   if (activeNav) return;
@@ -1841,20 +2325,37 @@ document.querySelector("#addAreaBtn").addEventListener("click", addArea);
 document.querySelector("#addUserBtn").addEventListener("click", addUser);
 document.querySelector("#generateCouponsBtn").addEventListener("click", generateCoupons);
 document.querySelector("#importParticipantCouponsBtn").addEventListener("click", importParticipantCoupons);
+document.querySelector("#importCouponsExcelBtn").addEventListener("click", () => els.couponImportFile && els.couponImportFile.click());
+document.querySelector("#printCouponTemplatesBtn").addEventListener("click", () => printCouponTemplates());
 document.querySelector("#addGeneralCouponBtn").addEventListener("click", addGeneralCoupon);
 document.querySelector("#scanCouponBtn").addEventListener("click", scanCoupon);
+document.querySelector("#startScannerBtn").addEventListener("click", startScanner);
+document.querySelector("#stopScannerBtn").addEventListener("click", stopScanner);
 document.querySelector("#clearScanResultBtn").addEventListener("click", () => {
   els.scanResult.textContent = "";
   els.scanResult.className = "scan-result";
 });
 document.querySelector("#downloadCouponsReportBtn").addEventListener("click", downloadCouponsReport);
 document.querySelector("#printDistributionReportBtn").addEventListener("click", printDistributionReport);
+document.querySelector("#exportAuditLogBtn").addEventListener("click", exportAuditLog);
 document.querySelector("#saveProfileBtn").addEventListener("click", saveProfile);
 document.querySelector("#resetDemoBtn").addEventListener("click", () => {
   if (!window.confirm("Reset seluruh data demo? Data lokal yang sudah diubah akan diganti dengan data contoh.")) return;
   state = structuredClone(defaultState);
+  markDataChange("Reset demo", "Seluruh data lokal diganti dengan data contoh.");
   render();
 });
+if (els.couponImportFile) {
+  els.couponImportFile.addEventListener("change", async (event) => {
+    try {
+      await importCouponsOrParticipantsFile(event.target.files[0]);
+    } catch (error) {
+      alert(error.message || "Import file gagal. Periksa format kolom dan coba lagi.");
+    } finally {
+      event.target.value = "";
+    }
+  });
+}
 els.adminLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   els.adminLoginError.textContent = "";
@@ -1926,6 +2427,7 @@ document.addEventListener("click", (event) => {
   const deleteAreaId = event.target.dataset.deleteArea;
   const deleteUserId = event.target.dataset.deleteUser;
   const deleteCouponId = event.target.dataset.deleteCoupon;
+  const printCouponId = event.target.dataset.printCoupon;
 
   if (editAnimalId) openAnimalForm(editAnimalId);
   if (deleteAnimalId) deleteAnimal(deleteAnimalId);
@@ -1933,6 +2435,7 @@ document.addEventListener("click", (event) => {
   if (validateParticipantId) setParticipantValidation(validateParticipantId, "Validasi sukses");
   if (rejectParticipantId) setParticipantValidation(rejectParticipantId, "Ditolak");
   if (printParticipantId) printParticipantCards([printParticipantId]);
+  if (printCouponId) printCouponTemplates([printCouponId]);
   if (deleteParticipantId) deleteParticipant(deleteParticipantId);
   if (moduleAdd) addModuleRecord(moduleAdd);
   if (moduleDelete) deleteModuleRecord(moduleDelete, Number(moduleIndex));
@@ -1944,16 +2447,21 @@ document.addEventListener("click", (event) => {
     state.modules.coupons.forEach((coupon) => {
       if (coupon.areaId === deleteAreaId) coupon.areaId = "";
     });
+    markDataChange("Hapus wilayah", deleteAreaId);
     render();
   }
   if (deleteUserId) {
     if (!window.confirm("Hapus user ini? Akun tidak bisa dipakai lagi setelah dihapus.")) return;
+    const removed = state.modules.users.find((user) => user.id === deleteUserId);
     state.modules.users = state.modules.users.filter((user) => user.id !== deleteUserId);
+    markDataChange("Hapus user", removed ? removed.username : deleteUserId);
     render();
   }
   if (deleteCouponId) {
     if (!window.confirm("Hapus kupon ini? Data kupon akan hilang dari penyimpanan lokal.")) return;
+    const removed = state.modules.coupons.find((coupon) => coupon.id === deleteCouponId);
     state.modules.coupons = state.modules.coupons.filter((coupon) => coupon.id !== deleteCouponId);
+    markDataChange("Hapus kupon", removed ? removed.code : deleteCouponId);
     render();
   }
 });

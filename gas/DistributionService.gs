@@ -4,7 +4,7 @@ function getDistribution() {
   rows.forEach((row) => {
     if (row.key === "targets") {
       try {
-        data.targets = JSON.parse(row.value || "[]");
+        data.targets = normalizePayloadDates(JSON.parse(row.value || "[]"));
       } catch (error) {
         data.targets = [];
       }
@@ -23,7 +23,7 @@ function saveDistribution(payload) {
     panitia: Number(payload.panitia || 0),
     peserta: Number(payload.peserta || 0),
     notes: String(payload.notes || "").trim(),
-    targets: Array.isArray(payload.targets) ? payload.targets : [],
+    targets: normalizePayloadDates(Array.isArray(payload.targets) ? payload.targets : []),
   };
   const rows = Object.keys(data).map((key) => ({ key, value: key === "targets" ? JSON.stringify(data[key]) : data[key], updatedAt: now }));
   writeRows(APP_CONFIG.sheets.distribution, APP_CONFIG.headers.distribution, rows);

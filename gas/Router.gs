@@ -28,7 +28,7 @@ function routePost(event) {
   if (action === "saveParticipant") return { participant: saveParticipant(payload) };
   if (action === "deleteParticipant") return removeParticipant(payload.id);
   if (action === "saveDistribution") return { distribution: saveDistribution(payload) };
-  if (action === "syncState") return syncState(payload);
+  if (action === "syncState") return syncState(payload, body.baseVersion);
 
   throw new Error("Action POST tidak dikenal: " + action);
 }
@@ -58,11 +58,13 @@ function savePublicBooking(payload) {
 }
 
 function getFullState() {
+  const modules = getModules();
   return {
     animals: listAnimals(),
     participants: listParticipants(),
     distribution: getDistribution(),
-    modules: getModules(),
+    modules,
+    meta: modules.meta || { version: 1, updatedAt: getNowIso(), updatedBy: "backend" },
     summary: getSummary(),
   };
 }
@@ -111,11 +113,33 @@ function getPublicInvoice(invoice) {
   };
 }
 
-function syncState(payload) {
+function syncState(payload, baseVersion) {
+  payload = normalizePayloadDates(payload || {});
+  const modulesBefore = getModules();
+  const currentMeta = modulesBefore.meta || {};
+  const currentVersion = Number(currentMeta.version || 0);
+  const incomingVersion = Number(payload.meta && payload.meta.version || 0);
+  const expectedVersion = Number(baseVersion || incomingVersion || 0);
+
+  if (currentVersion > expectedVersion) {
+    return {
+      ok: false,
+      conflict: true,
+      error: "Data backend sudah berubah. Muat ulang data sebelum menyimpan ulang.",
+      currentVersion,
+      expectedVersion,
+      state: getFullState(),
+    };
+  }
+
   const animals = payload.animals || [];
   const participants = payload.participants || [];
   const distribution = payload.distribution || {};
   const modules = payload.modules || {};
+  const nextMeta = payload.meta || {};
+  nextMeta.version = Math.max(currentVersion, incomingVersion) || 1;
+  nextMeta.updatedAt = toUtcIso(nextMeta.updatedAt) || getNowIso();
+  modules.meta = nextMeta;
 
   writeRows(APP_CONFIG.sheets.animals, APP_CONFIG.headers.animals, animals.map(validateAnimal));
   writeRows(APP_CONFIG.sheets.participants, APP_CONFIG.headers.participants, participants.map(validateParticipant));

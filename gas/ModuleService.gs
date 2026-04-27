@@ -3,7 +3,7 @@ function getModules() {
   const data = {};
   rows.forEach((row) => {
     try {
-      data[row.key] = JSON.parse(row.value || "[]");
+      data[row.key] = normalizePayloadDates(JSON.parse(row.value || "[]"));
     } catch (error) {
       data[row.key] = String(row.value || "");
     }
@@ -27,11 +27,13 @@ function saveModules(payload) {
     "users",
     "coupons",
     "scanHistory",
+    "auditLog",
     "profile",
+    "meta",
   ];
   const rows = keys.map((key) => {
     const fallback = ["appSettings", "profile"].indexOf(key) !== -1 ? {} : [];
-    const value = payload[key] === undefined ? fallback : payload[key];
+    const value = normalizePayloadDates(payload[key] === undefined ? fallback : payload[key]);
     return {
       key,
       value: JSON.stringify(value),

@@ -65,13 +65,13 @@ const publicEls = {
   type: document.querySelector("#typeFilter"),
   quota: document.querySelector("#quotaFilter"),
   packageGrid: document.querySelector("#packageGrid"),
-  gallery: document.querySelector("#animalGallery"),
   bookingForm: document.querySelector("#bookingForm"),
   bookingSelect: document.querySelector("#bookingAnimalSelect"),
   bookingResult: document.querySelector("#bookingResult"),
   invoiceCheckForm: document.querySelector("#invoiceCheckForm"),
   invoiceCheckResult: document.querySelector("#invoiceCheckResult"),
   distributionSummary: document.querySelector("#distributionSummary"),
+  distributionStatus: document.querySelector("#publicDistributionStatus"),
   distributionTargets: document.querySelector("#distributionTargets"),
 };
 
@@ -238,7 +238,6 @@ function renderPublicAnimals() {
   publicEls.totalAnimals.textContent = publicAnimals.length;
   publicEls.availableShares.textContent = available;
   renderPackages();
-  renderGallery();
   renderBookingOptions();
   renderDistribution();
 
@@ -301,6 +300,7 @@ function renderPublicAnimals() {
 }
 
 function renderDistribution() {
+  const targets = publicDistribution.targets || [];
   if (publicEls.distributionSummary) {
     publicEls.distributionSummary.innerHTML = `
       <div><span>Warga sekitar</span><strong>${Number(publicDistribution.warga || 0)}</strong></div>
@@ -310,8 +310,35 @@ function renderDistribution() {
     `;
   }
 
+  if (publicEls.distributionStatus) {
+    const totalBags = targets.reduce((sum, target) => sum + Number(target.bags || 0), 0);
+    const sent = targets.filter((target) => ["Terkirim", "Sudah diambil"].includes(target.status)).reduce((sum, target) => sum + Number(target.bags || 0), 0);
+    const ready = targets.filter((target) => ["Siap dibagikan", "Terjadwal"].includes(target.status)).reduce((sum, target) => sum + Number(target.bags || 0), 0);
+    const packed = Math.max(0, totalBags - sent - ready);
+    const percent = totalBags ? Math.round((sent / totalBags) * 100) : 0;
+    publicEls.distributionStatus.innerHTML = `
+      <article>
+        <span>Total paket tercatat</span>
+        <strong>${totalBags}</strong>
+      </article>
+      <article>
+        <span>Sudah tersalurkan</span>
+        <strong>${sent}</strong>
+      </article>
+      <article>
+        <span>Siap/terjadwal</span>
+        <strong>${ready}</strong>
+      </article>
+      <article>
+        <span>Proses pengemasan</span>
+        <strong>${packed}</strong>
+      </article>
+      <div class="public-progress"><span style="width:${percent}%"></span></div>
+      <small>${percent}% paket tujuan sudah berstatus tersalurkan. Data publik ini tidak menampilkan nama penerima.</small>
+    `;
+  }
+
   if (!publicEls.distributionTargets) return;
-  const targets = publicDistribution.targets || [];
   if (!targets.length) {
     publicEls.distributionTargets.innerHTML = "";
     return;
@@ -364,26 +391,6 @@ function renderPackages() {
       <small>${escapeHtml(item.status)}</small>
     </article>
   `).join("");
-}
-
-function renderGallery() {
-  if (!publicEls.gallery) return;
-  const galleryItems = publicAnimals.slice(0, 6);
-  if (!galleryItems.length) {
-    publicEls.gallery.innerHTML = "";
-    return;
-  }
-
-  publicEls.gallery.innerHTML = galleryItems.map((animal) => {
-    const photoUrl = animal.photoUrl || getFallbackAnimalPhoto(animal.type);
-    const fallbackPhoto = getFallbackAnimalPhoto(animal.type);
-    return `
-      <figure>
-        <img src="${escapeHtml(photoUrl)}" alt="Galeri ${escapeHtml(animal.type)} ${escapeHtml(animal.code)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallbackPhoto)}';" />
-        <figcaption>${escapeHtml(animal.code)} - ${escapeHtml(animal.type)}</figcaption>
-      </figure>
-    `;
-  }).join("");
 }
 
 function renderBookingOptions() {

@@ -39,24 +39,27 @@
       <nav class="nav">
         <div class="role-switch" aria-label="Mode pengguna">
           <button class="role-btn active" data-role-switch="admin" type="button">Admin</button>
-          <button class="role-btn" data-role-switch="panitia" type="button">Panitia</button>
+          <button class="role-btn" data-role-switch="bendahara" type="button">Bendahara</button>
+          <button class="role-btn" data-role-switch="distribusi" type="button">Distribusi</button>
+          <button class="role-btn" data-role-switch="scanner" type="button">Scanner</button>
         </div>
         <span class="nav-label">Utama</span>
-        <button class="nav-item active" data-view="overview" data-access="admin panitia" type="button">Dashboard</button>
+        <button class="nav-item active" data-view="overview" data-access="admin bendahara distribusi scanner panitia" type="button">Dashboard</button>
         <button class="nav-item" data-view="settings" data-access="admin" type="button">Pengaturan</button>
         <span class="nav-label">Data master</span>
         <button class="nav-item" data-view="areas" data-access="admin" type="button">Data Wilayah</button>
         <button class="nav-item" data-view="users" data-access="admin" type="button">Data User</button>
-        <button class="nav-item" data-view="coupons" data-access="admin" type="button">Data Kupon</button>
+        <button class="nav-item" data-view="coupons" data-access="admin distribusi" type="button">Data Kupon</button>
         <span class="nav-label">Operasional</span>
-        <button class="nav-item" data-view="scan" data-access="admin panitia" type="button">Scan Kupon</button>
-        <button class="nav-item" data-view="scanHistory" data-access="admin panitia" type="button">Riwayat Scan</button>
-        <button class="nav-item" data-view="reports" data-access="admin" type="button">Rekap & Laporan</button>
-        <button class="nav-item" data-view="profile" data-access="admin panitia" type="button">Profil Akun</button>
-        <button class="nav-item" data-view="animals" data-access="admin" type="button">Hewan</button>
-        <button class="nav-item" data-view="participants" data-access="admin" type="button">Peserta</button>
-        <button class="nav-item" data-view="distribution" data-access="admin" type="button">Distribusi</button>
-        <button class="nav-item" data-view="modules" data-access="admin" type="button">Modul Teknis</button>
+        <button class="nav-item" data-view="scan" data-access="admin distribusi scanner panitia" type="button">Scan Kupon</button>
+        <button class="nav-item" data-view="scanHistory" data-access="admin distribusi scanner panitia" type="button">Riwayat Scan</button>
+        <button class="nav-item" data-view="reports" data-access="admin bendahara distribusi" type="button">Rekap & Laporan</button>
+        <button class="nav-item" data-view="profile" data-access="admin bendahara distribusi scanner panitia" type="button">Profil Akun</button>
+        <button class="nav-item" data-view="animals" data-access="admin distribusi" type="button">Hewan</button>
+        <button class="nav-item" data-view="participants" data-access="admin bendahara" type="button">Peserta</button>
+        <button class="nav-item" data-view="distribution" data-access="admin distribusi" type="button">Distribusi</button>
+        <button class="nav-item" data-view="modules" data-access="admin bendahara distribusi" type="button">Modul Teknis</button>
+        <button class="nav-item" data-view="audit" data-access="admin" type="button">Audit Log</button>
         <a class="nav-link" href="index.html">Website hewan</a>
       </nav>
 
@@ -221,6 +224,9 @@
               <label>Role
                 <select name="role">
                   <option value="Admin">Admin</option>
+                  <option value="Bendahara">Bendahara</option>
+                  <option value="Distribusi">Distribusi</option>
+                  <option value="Scanner">Scanner</option>
                   <option value="Panitia">Panitia</option>
                 </select>
               </label>
@@ -258,9 +264,12 @@
               <div class="topbar-actions">
                 <button class="ghost-btn" id="generateCouponsBtn" type="button">Generate otomatis</button>
                 <button class="ghost-btn" id="importParticipantCouponsBtn" type="button">Import pengkurban</button>
+                <button class="ghost-btn" id="importCouponsExcelBtn" type="button">Import Excel</button>
+                <button class="ghost-btn" id="printCouponTemplatesBtn" type="button">Cetak kupon</button>
                 <button class="primary-btn" id="addGeneralCouponBtn" type="button">Kupon umum</button>
               </div>
             </div>
+            <input id="couponImportFile" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden />
             <form class="coupon-tools form-card" id="couponGenerateForm">
               <label>Wilayah
                 <select name="areaId" id="couponAreaSelect"></select>
@@ -298,9 +307,20 @@
             <div class="section-head">
               <div>
                 <h2>Scan kupon</h2>
-                <p>Verifikasi kupon saat warga mengambil daging.</p>
+                <p>Verifikasi kupon saat warga mengambil daging melalui kamera atau input manual.</p>
               </div>
-              <button class="primary-btn" id="scanCouponBtn" type="button">Verifikasi kupon</button>
+              <div class="topbar-actions">
+                <button class="ghost-btn" id="startScannerBtn" type="button">Mulai kamera</button>
+                <button class="ghost-btn" id="stopScannerBtn" type="button">Stop kamera</button>
+                <button class="primary-btn" id="scanCouponBtn" type="button">Verifikasi manual</button>
+              </div>
+            </div>
+            <div class="scanner-camera" id="scannerCameraPanel">
+              <video id="scannerVideo" playsinline muted></video>
+              <div>
+                <strong>Scanner QR kupon</strong>
+                <span id="scannerStatus">Kamera belum aktif. Gunakan input manual jika perangkat tidak mendukung scanner QR.</span>
+              </div>
             </div>
             <form class="scan-panel form-card" id="scanForm">
               <label>Kode kupon <input name="couponCode" required maxlength="16" placeholder="KPN-0001" /></label>
@@ -343,8 +363,8 @@
                 <p>Unduh atau cetak laporan pembagian daging.</p>
               </div>
               <div class="topbar-actions">
-                <button class="ghost-btn" id="downloadCouponsReportBtn" type="button">Unduh CSV</button>
-                <button class="primary-btn" id="printDistributionReportBtn" type="button">Cetak laporan</button>
+                <button class="ghost-btn" id="downloadCouponsReportBtn" type="button">Ekspor Excel</button>
+                <button class="primary-btn" id="printDistributionReportBtn" type="button">Cetak PDF</button>
               </div>
             </div>
             <div class="ops-grid" id="reportStats"></div>
@@ -591,6 +611,30 @@
               </div>
             </div>
             <div class="module-sections" id="moduleSections"></div>
+          </div>
+
+          <div class="view-panel" id="auditView">
+            <div class="section-head">
+              <div>
+                <h2>Audit log perubahan data</h2>
+                <p>Catatan siapa mengubah data, kapan dilakukan, dan aksi apa yang terjadi.</p>
+              </div>
+              <button class="ghost-btn" id="exportAuditLogBtn" type="button">Ekspor log</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Aksi</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogTable"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
