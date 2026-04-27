@@ -10,9 +10,10 @@ function saveParticipant(payload) {
 
   const existingShares = listParticipants().filter((item) => {
     return String(item.animalId) === String(participant.animalId) && String(item.id) !== String(id);
-  }).length;
+  }).reduce((sum, item) => sum + getParticipantShareUnits(item, animal), 0);
+  const requestedShares = getPackageShareUnits(participant.packageType, animal);
 
-  if (existingShares >= getShareLimit(animal.type)) {
+  if (existingShares + requestedShares > getShareLimit(animal.type)) {
     throw new Error("Kuota hewan sudah penuh.");
   }
 

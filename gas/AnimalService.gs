@@ -70,3 +70,13 @@ function normalizeAnimal(row) {
 function getShareLimit(type) {
   return type === "Sapi" ? 7 : 1;
 }
+
+function getParticipantShareUnits(participant, animal) {
+  if (animal && animal.type === "Sapi" && participant.packageType === "Sapi penuh keluarga") return 7;
+  return 1;
+}
+
+function getPackageShareUnits(packageType, animal) {
+  if (animal && animal.type === "Sapi" && packageType === "Sapi penuh keluarga") return 7;
+  return 1;
+}

@@ -67,6 +67,7 @@ const publicEls = {
   packageGrid: document.querySelector("#packageGrid"),
   bookingForm: document.querySelector("#bookingForm"),
   bookingSelect: document.querySelector("#bookingAnimalSelect"),
+  bookingPackageSelect: document.querySelector("#bookingPackageSelect"),
   bookingResult: document.querySelector("#bookingResult"),
   invoiceCheckForm: document.querySelector("#invoiceCheckForm"),
   invoiceCheckResult: document.querySelector("#invoiceCheckResult"),
@@ -106,9 +107,22 @@ function shareCapacity(type) {
   return type === "Sapi" ? 7 : 1;
 }
 
+function participantShareUnits(participant, animal) {
+  const type = animal ? animal.type : "";
+  if (type === "Sapi" && participant.packageType === "Sapi penuh keluarga") return 7;
+  return 1;
+}
+
+function packageShareUnits(packageType, animal) {
+  if (animal && animal.type === "Sapi" && packageType === "Sapi penuh keluarga") return 7;
+  return 1;
+}
+
 function normalizePublicAnimal(animal, participants = []) {
   const capacity = shareCapacity(animal.type);
-  const filled = participants.filter((participant) => String(participant.animalId) === String(animal.id)).length;
+  const filled = participants
+    .filter((participant) => String(participant.animalId) === String(animal.id))
+    .reduce((sum, participant) => sum + participantShareUnits(participant, animal), 0);
   return {
     ...animal,
     capacity,
@@ -148,6 +162,7 @@ function nextLocalInvoice(state) {
 
 function makeBookingPayload(formData, animal, invoice = "") {
   const total = Number(animal.price || 0) + Number(animal.cost || 0);
+  const packageType = formData.packageType || (animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`);
   return {
     id: crypto.randomUUID(),
     token: invoice,
@@ -155,9 +170,9 @@ function makeBookingPayload(formData, animal, invoice = "") {
     phone: String(formData.phone || "").trim(),
     address: String(formData.address || "").trim(),
     animalId: animal.id,
-    packageType: animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`,
+    packageType,
     paymentMethod: formData.paymentMethod || "Transfer",
-    due: Math.ceil(total / shareCapacity(animal.type)),
+    due: packageShareUnits(packageType, animal) >= shareCapacity(animal.type) ? total : Math.ceil(total / shareCapacity(animal.type)),
     paid: 0,
     bookingStatus: "Menunggu validasi",
     note: String(formData.note || "").trim(),
@@ -178,6 +193,18 @@ function makeDemoParticipant(animal, index) {
     paid: 0,
     bookingStatus: "Menunggu validasi",
   };
+}
+
+function getPackageOptionsForAnimal(animal) {
+  if (!animal) return [];
+  if (animal.type === "Sapi") {
+    const options = [{ value: "Patungan sapi", label: "Patungan sapi (1/7 bagian)" }];
+    if (Number(animal.available || 0) >= shareCapacity(animal.type)) {
+      options.push({ value: "Sapi penuh keluarga", label: "Sapi penuh keluarga (1 ekor)" });
+    }
+    return options;
+  }
+  return [{ value: `${animal.type} individu`, label: `${animal.type} individu (1 ekor)` }];
 }
 
 function getBookingStatusLabel(status) {
@@ -398,16 +425,27 @@ function renderBookingOptions() {
   const availableAnimals = publicAnimals.filter((animal) => Number(animal.available || 0) > 0);
   if (!availableAnimals.length) {
     publicEls.bookingSelect.innerHTML = '<option value="">Belum ada slot peserta tersedia</option>';
+    if (publicEls.bookingPackageSelect) publicEls.bookingPackageSelect.innerHTML = '<option value="">Paket belum tersedia</option>';
     return;
   }
 
   publicEls.bookingSelect.innerHTML = availableAnimals.map((animal) => {
     return `<option value="${escapeHtml(animal.id)}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)} (${Number(animal.available || 0)} dari ${Number(animal.capacity || shareCapacity(animal.type))} slot tersedia)</option>`;
   }).join("");
+  renderBookingPackageOptions();
+}
+
+function renderBookingPackageOptions() {
+  if (!publicEls.bookingPackageSelect || !publicEls.bookingSelect) return;
+  const animal = publicAnimals.find((item) => String(item.id) === String(publicEls.bookingSelect.value));
+  const options = getPackageOptionsForAnimal(animal);
+  publicEls.bookingPackageSelect.innerHTML = options.length
+    ? options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("")
+    : '<option value="">Paket belum tersedia</option>';
 }
 
 function getCapacityText(animal) {
-  if (animal.type === "Sapi") return "1 ekor sapi untuk 7 orang";
+  if (animal.type === "Sapi") return "Patungan 1/7 atau 1 ekor penuh";
   return `1 ekor ${String(animal.type || "hewan").toLowerCase()} untuk 1 orang`;
 }
 
@@ -503,8 +541,11 @@ async function submitLocalBooking(formData, animal) {
   if (!currentAnimal) throw new Error("Hewan tidak ditemukan di data lokal.");
 
   const participants = state.participants || [];
-  const filled = participants.filter((participant) => String(participant.animalId) === String(animal.id)).length;
-  if (filled >= shareCapacity(currentAnimal.type)) throw new Error("Kuota hewan sudah penuh.");
+  const filled = participants
+    .filter((participant) => String(participant.animalId) === String(animal.id))
+    .reduce((sum, participant) => sum + participantShareUnits(participant, currentAnimal), 0);
+  const requested = packageShareUnits(formData.packageType, currentAnimal);
+  if (filled + requested > shareCapacity(currentAnimal.type)) throw new Error("Kuota hewan sudah penuh.");
 
   const invoice = nextLocalInvoice(state);
   participants.push(makeBookingPayload(formData, currentAnimal, invoice));
@@ -554,6 +595,10 @@ async function checkInvoice(invoice) {
   element.addEventListener("input", renderPublicAnimals);
   element.addEventListener("change", renderPublicAnimals);
 });
+
+if (publicEls.bookingSelect) {
+  publicEls.bookingSelect.addEventListener("change", renderBookingPackageOptions);
+}
 
 if (publicEls.bookingForm) {
   publicEls.bookingForm.addEventListener("submit", async (event) => {

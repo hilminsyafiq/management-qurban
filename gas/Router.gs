@@ -34,6 +34,11 @@ function routePost(event) {
 }
 
 function savePublicBooking(payload) {
+  const animal = getAnimal(payload.animalId);
+  if (!animal) throw new Error("Hewan tidak ditemukan.");
+  const packageType = payload.packageType || (animal.type === "Sapi" ? "Patungan sapi" : animal.type + " individu");
+  const total = Number(animal.price || 0) + Number(animal.cost || 0);
+  const due = getPackageShareUnits(packageType, animal) >= getShareLimit(animal.type) ? total : Math.ceil(total / getShareLimit(animal.type));
   const participant = saveParticipant({
     id: payload.id || "",
     token: payload.token || "",
@@ -41,9 +46,9 @@ function savePublicBooking(payload) {
     phone: payload.phone,
     address: payload.address,
     animalId: payload.animalId,
-    packageType: payload.packageType,
+    packageType,
     paymentMethod: payload.paymentMethod,
-    due: payload.due,
+    due,
     paid: 0,
     bookingStatus: "Menunggu validasi",
   });
@@ -72,8 +77,10 @@ function getFullState() {
 function getPublicAnimals() {
   const participants = listParticipants();
   const animals = listAnimals().map((animal) => {
-    const filled = participants.filter((participant) => String(participant.animalId) === String(animal.id)).length;
     const capacity = getShareLimit(animal.type);
+    const filled = participants
+      .filter((participant) => String(participant.animalId) === String(animal.id))
+      .reduce((sum, participant) => sum + getParticipantShareUnits(participant, animal), 0);
     return {
       id: animal.id,
       code: animal.code,

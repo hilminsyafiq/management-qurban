@@ -640,6 +640,26 @@ function shareLimit(type) {
   return type === "Sapi" ? 7 : 1;
 }
 
+function participantShareUnits(participant, animal) {
+  const type = animal ? animal.type : state.animals.find((item) => item.id === participant.animalId)?.type;
+  if (type === "Sapi" && participant.packageType === "Sapi penuh keluarga") return 7;
+  return 1;
+}
+
+function usedShareUnits(animalId, excludeParticipantId = "") {
+  return participantsFor(animalId)
+    .filter((participant) => String(participant.id) !== String(excludeParticipantId || ""))
+    .reduce((sum, participant) => {
+      const animal = state.animals.find((item) => item.id === participant.animalId);
+      return sum + participantShareUnits(participant, animal);
+    }, 0);
+}
+
+function packageShareUnits(packageType, animal) {
+  if (animal && animal.type === "Sapi" && packageType === "Sapi penuh keluarga") return 7;
+  return 1;
+}
+
 function statusLabel(status) {
   const labels = {
     booking: "Booking",
@@ -689,7 +709,10 @@ function render() {
 
 function renderSummary() {
   const totalCapacity = state.animals.reduce((sum, animal) => sum + shareLimit(animal.type), 0);
-  const filled = state.participants.length;
+  const filled = state.participants.reduce((sum, participant) => {
+    const animal = state.animals.find((item) => item.id === participant.animalId);
+    return sum + participantShareUnits(participant, animal);
+  }, 0);
   const paid = state.participants.reduce((sum, participant) => sum + Number(participant.paid || 0), 0);
   const detailedPackages = (state.distribution.targets || []).reduce((sum, target) => sum + Number(target.bags || 0), 0);
   const packages = detailedPackages || Object.entries(state.distribution)
@@ -905,8 +928,9 @@ function renderAnimalBoard() {
   els.animalBoard.innerHTML = animals
     .map((animal) => {
       const members = participantsFor(animal.id);
+      const filledUnits = usedShareUnits(animal.id);
       const capacity = shareLimit(animal.type);
-      const percent = Math.min(100, (members.length / capacity) * 100);
+      const percent = Math.min(100, (filledUnits / capacity) * 100);
       return `
         <article class="animal-card">
           <div>
@@ -914,7 +938,7 @@ function renderAnimalBoard() {
             <div class="meta">${escapeHtml(animal.type)} - ${animal.weight} kg</div>
           </div>
           <div>
-            <strong>${members.length}/${capacity} peserta</strong>
+            <strong>${filledUnits}/${capacity} slot</strong>
             <div class="progress-track"><div class="progress-fill" style="width:${percent}%"></div></div>
           </div>
           <div>
@@ -936,14 +960,13 @@ function renderAnimalsTable() {
 
   els.animalsTable.innerHTML = state.animals
     .map((animal) => {
-      const members = participantsFor(animal.id);
       return `
         <tr>
           <td><strong>${escapeHtml(animal.code)}</strong></td>
           <td>${escapeHtml(animal.type)}</td>
           <td>${animal.weight} kg</td>
           <td>${money(animal.price)}</td>
-          <td>${members.length}/${shareLimit(animal.type)}</td>
+          <td>${usedShareUnits(animal.id)}/${shareLimit(animal.type)}</td>
           <td><span class="badge">${escapeHtml(statusLabel(animal.status))}</span></td>
           <td>
             <div class="row-actions">
@@ -1015,9 +1038,9 @@ function renderValidation() {
   const issues = [];
 
   state.animals.forEach((animal) => {
-    const count = participantsFor(animal.id).length;
+    const count = usedShareUnits(animal.id);
     const capacity = shareLimit(animal.type);
-    if (count > capacity) issues.push(`${animal.code} melebihi kuota ${capacity} peserta.`);
+    if (count > capacity) issues.push(`${animal.code} melebihi kuota ${capacity} slot.`);
     if (count === 0) issues.push(`${animal.code} belum punya peserta.`);
     if (!animal.schedule) issues.push(`${animal.code} belum punya jadwal sembelih.`);
     if (!animal.location) issues.push(`${animal.code} belum punya lokasi penitipan.`);
@@ -1047,6 +1070,29 @@ function fillAnimalOptions() {
     .map((animal) => `<option value="${animal.id}">${escapeHtml(animal.code)} - ${escapeHtml(animal.type)}</option>`)
     .join("");
   if (selected) els.participantForm.elements.animalId.value = selected;
+  updateParticipantPackageOptions();
+}
+
+function getPackageOptionsForAnimal(animal) {
+  if (!animal) return [];
+  if (animal.type === "Sapi") {
+    return [
+      { value: "Patungan sapi", label: "Patungan sapi (1/7 bagian)" },
+      { value: "Sapi penuh keluarga", label: "Sapi penuh keluarga (1 ekor)" },
+    ];
+  }
+  return [{ value: `${animal.type} individu`, label: `${animal.type} individu (1 ekor)` }];
+}
+
+function updateParticipantPackageOptions(selectedPackage = "") {
+  const form = els.participantForm;
+  if (!form || !form.elements.packageType) return;
+  const animal = state.animals.find((item) => item.id === form.elements.animalId.value);
+  const current = selectedPackage || form.elements.packageType.value;
+  const options = getPackageOptionsForAnimal(animal);
+  form.elements.packageType.innerHTML = options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("");
+  if (options.some((option) => option.value === current)) form.elements.packageType.value = current;
+  form.elements.due.value = suggestDue(form.elements.animalId.value, form.elements.packageType.value);
 }
 
 function isAnimalHealthy(animal) {
@@ -1126,6 +1172,7 @@ function openParticipantForm(participantId) {
     form.elements.paid.value = 0;
     form.elements.bookingStatus.value = "Menunggu validasi";
   }
+  updateParticipantPackageOptions(form.elements.packageType.value);
 
   els.participantDialog.showModal();
 }
@@ -1212,9 +1259,10 @@ function saveParticipant() {
 
   const data = Object.fromEntries(new FormData(form));
   const animal = state.animals.find((item) => item.id === data.animalId);
-  const existingShares = participantsFor(data.animalId).filter((item) => item.id !== data.id).length;
+  const existingShares = usedShareUnits(data.animalId, data.id);
+  const requestedShares = packageShareUnits(data.packageType, animal);
 
-  if (animal && existingShares >= shareLimit(animal.type)) {
+  if (animal && existingShares + requestedShares > shareLimit(animal.type)) {
     alert(`Kuota ${animal.code} sudah penuh.`);
     return;
   }
@@ -1719,10 +1767,11 @@ function nextParticipantToken() {
   return `QBN-${String(nextNumber).padStart(4, "0")}`;
 }
 
-function suggestDue(animalId) {
+function suggestDue(animalId, packageType = "") {
   const animal = state.animals.find((item) => item.id === animalId);
   if (!animal) return 0;
-  return Math.ceil((Number(animal.price) + Number(animal.cost)) / shareLimit(animal.type));
+  const total = Number(animal.price) + Number(animal.cost);
+  return packageShareUnits(packageType, animal) >= shareLimit(animal.type) ? total : Math.ceil(total / shareLimit(animal.type));
 }
 
 function saveSettings() {
@@ -2010,6 +2059,7 @@ async function importCouponsOrParticipantsFile(file) {
     if (invoice || phone || animalCode) {
       const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === animalCode.toUpperCase()) || state.animals[0];
       if (name && animal) {
+        const packageType = rowValue(row, headers, ["paket", "packagetype"]) || (animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`);
         state.participants.push({
           id: crypto.randomUUID(),
           token: invoice || nextParticipantToken(),
@@ -2017,9 +2067,9 @@ async function importCouponsOrParticipantsFile(file) {
           phone,
           address: rowValue(row, headers, ["alamat", "address"]) || "-",
           animalId: animal.id,
-          packageType: rowValue(row, headers, ["paket", "packagetype"]) || (animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`),
+          packageType,
           paymentMethod: rowValue(row, headers, ["metode", "paymentmethod"]) || "Transfer",
-          due: Number(String(due || suggestDue(animal.id)).replace(/\D/g, "")),
+          due: Number(String(due || suggestDue(animal.id, packageType)).replace(/\D/g, "")),
           paid: Number(String(paid || 0).replace(/\D/g, "")),
           bookingStatus: rowValue(row, headers, ["validasi", "bookingstatus"]) || "Menunggu validasi",
         });
@@ -2387,7 +2437,13 @@ document.querySelector("#animalPhotoFile").addEventListener("change", async (eve
   setPhotoPreview(preview);
 });
 els.participantForm.elements.animalId.addEventListener("change", (event) => {
-  els.participantForm.elements.due.value = suggestDue(event.target.value);
+  updateParticipantPackageOptions();
+});
+els.participantForm.elements.packageType.addEventListener("change", () => {
+  els.participantForm.elements.due.value = suggestDue(
+    els.participantForm.elements.animalId.value,
+    els.participantForm.elements.packageType.value,
+  );
 });
 els.roleButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveRole(button.dataset.roleSwitch));
