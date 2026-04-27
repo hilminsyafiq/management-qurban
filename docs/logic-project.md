@@ -1,11 +1,12 @@
 # Logic Project Manajemen Hewan Qurban
 
-Project ini dibuat sebagai aplikasi frontend statis. Semua data tersimpan di `localStorage`, sehingga bisa dipakai langsung tanpa backend.
+Project ini dibuat sebagai aplikasi frontend statis yang bisa berjalan lokal dengan `localStorage`, dan bisa sinkron antar panitia melalui Vercel proxy + Google Apps Script + Google Sheet.
 
 ## Root
 
 - `index.html`: kerangka aplikasi, navigasi, dashboard, tabel, form dialog, dan area validasi.
 - `hewan.html`: website publik untuk menampilkan daftar hewan qurban, sisa kuota, biaya, bobot, jadwal, dan status.
+- `admin.html`: aplikasi operasional Admin/Panitia untuk hewan, peserta, kupon, scan, laporan, dan pengaturan.
 - `vercel.json`: konfigurasi deploy Vercel untuk header dan clean URL.
 - `.env.example`: contoh environment variable Vercel.
 - `styles/main.css`: tampilan aplikasi operasional yang responsif untuk desktop dan mobile.
@@ -24,12 +25,14 @@ Project ini dibuat sebagai aplikasi frontend statis. Semua data tersimpan di `lo
   - login memakai username dan password dari `modules.users`.
   - Apps Script menerima akses jika `ADMIN_PASSWORD` cocok atau akun di `Modules.users` aktif dan password cocok.
   - akun bawaan lokal: `admin/admin123` untuk Admin dan `panitia/panitia123` untuk Panitia.
+  - Admin dapat berpindah mode Admin/Panitia, sedangkan akun Panitia terkunci di menu Panitia.
 - Logic kupon:
   - generate kupon otomatis berdasarkan wilayah dan kategori.
   - import kupon pengkurban dari data peserta.
   - kupon umum dapat dibuat tanpa nama penerima.
   - scan kupon menolak kode yang tidak ditemukan atau sudah pernah diterima.
   - setiap scan masuk ke riwayat berisi waktu, petugas, penerima, wilayah, dan status.
+  - laporan kupon bisa diunduh CSV dan laporan distribusi bisa dicetak.
 - Logic hewan:
   - tambah, edit, hapus hewan.
   - simpan `photoUrl` untuk profil/foto hewan di halaman publik.
@@ -78,6 +81,7 @@ Backend Google Apps Script dibuat modular supaya mudah dirawat.
 - `DistributionService.gs`: baca dan simpan data distribusi paket daging.
 - `SummaryService.gs`: hitung total hewan, kuota, pembayaran, dan paket.
 - `Router.gs`: mapping action API ke service yang sesuai.
+- `ModuleService.gs`: simpan dan baca modul teknis, akun, pengaturan, wilayah, kupon, scan, dan profil dari sheet `Modules`.
 - `appsscript.json`: manifest Apps Script.
 
 Action GET:
@@ -117,6 +121,7 @@ Folder ini dipakai oleh Vercel Serverless Functions.
 - Mendukung `GET` untuk data publik/admin dan `POST` untuk simpan data.
 - Membatasi action yang boleh diteruskan agar endpoint proxy tidak bebas dipakai untuk action lain.
 - Menambahkan token admin hanya dari sisi server Vercel, bukan dari browser.
+- Meneruskan username/password login ke Apps Script untuk validasi akun di sheet `Modules`.
 
 ## Alur Deploy
 
@@ -130,9 +135,14 @@ Folder ini dipakai oleh Vercel Serverless Functions.
 8. `index.html` admin memanggil `/api/gas?action=state` dan sync data lewat `POST /api/gas`.
 9. `/api/gas` meneruskan request ke Google Apps Script dengan token admin untuk action private.
 
-## Pengembangan Berikutnya
+## Status Pengembangan Lanjutan
 
-- Tambah backend atau Google Sheet untuk sinkronisasi antar panitia.
-- Tambah fitur cetak kartu peserta.
-- Tambah ekspor Excel/PDF laporan.
-- Tambah akun admin dan role panitia.
+- Selesai: QR code asli untuk kupon distribusi memakai gambar QR scannable pada template cetak kupon.
+- Selesai: scanner kamera membaca QR kupon dengan `BarcodeDetector`, dengan input manual tetap tersedia sebagai fallback.
+- Sebagian: template cetak kupon distribusi sudah tersedia untuk kategori kupon `Umum`, `Mustahik`, dan `Pengkurban`; kategori `Warga` masih dipakai pada modul distribusi, belum sebagai kategori kupon utama.
+- Selesai: import Excel/CSV asli untuk kupon atau peserta dari file `.xlsx`, `.xls`, `.csv`, `.tsv`, atau `.txt`.
+- Sebagian: ekspor Excel sudah tersedia untuk laporan kupon dan audit log, sedangkan PDF masih melalui fitur cetak browser/simpan sebagai PDF.
+- Selesai: audit log perubahan data mencatat waktu, user, role, aksi, detail, dan versi data.
+- Sebagian: permission detail sudah diterapkan di frontend untuk role Admin, Bendahara, Distribusi, Scanner, dan Panitia; backend masih memakai validasi token/akun umum, belum ACL per action.
+- Selesai: dashboard publik status distribusi menampilkan ringkasan paket/status tanpa membuka nama penerima.
+- Selesai: proteksi konflik sinkronisasi memakai `meta.version` dan `baseVersion` agar perubahan panitia lain tidak tertimpa diam-diam.

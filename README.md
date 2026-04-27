@@ -24,16 +24,17 @@ Aplikasi frontend statis untuk membantu panitia mencatat hewan qurban, peserta, 
 
 ## Fitur Utama
 
-- Dashboard distribusi daging untuk Admin dan Panitia.
-- Mode role Admin/Panitia dengan menu sesuai tugas masing-masing.
+- Dashboard distribusi daging untuk Admin, Bendahara, Distribusi, Scanner, dan Panitia.
+- Mode role dengan menu sesuai tugas masing-masing.
 - Pengaturan aplikasi: data masjid/lembaga, tahun kurban, kontak, dan status pembagian.
 - Data wilayah distribusi.
-- Data user admin dan panitia scan.
-- Akun login berbasis username/password dengan role `Admin` dan `Panitia`.
-- Data kupon: generate otomatis, import kupon pengkurban dari peserta, dan kupon umum tanpa nama.
-- Scan kupon manual untuk verifikasi pengambilan daging.
+- Data user dengan role `Admin`, `Bendahara`, `Distribusi`, `Scanner`, dan `Panitia`.
+- Akun login berbasis username/password.
+- Data kupon: generate otomatis, import kupon pengkurban dari peserta, import Excel/CSV, dan kupon umum tanpa nama.
+- Scan kupon manual atau kamera QR untuk verifikasi pengambilan daging.
 - Riwayat scan berisi petugas, penerima, waktu, dan status verifikasi.
-- Rekap laporan pembagian dengan cetak laporan dan unduh CSV kupon.
+- Rekap laporan pembagian dengan cetak laporan, ekspor Excel kupon, dan ekspor audit log.
+- Audit log perubahan data berisi waktu, user, role, aksi, detail, dan versi.
 - CRUD hewan qurban.
 - Profil hewan dengan foto/URL gambar.
 - CRUD peserta qurban.
@@ -41,6 +42,8 @@ Aplikasi frontend statis untuk membantu panitia mencatat hewan qurban, peserta, 
 - Validasi kuota sapi 7 peserta dan kambing/domba 1 peserta.
 - Rekap dana terkumpul dan paket distribusi.
 - Validasi data panitia: kuota, jadwal, peserta kosong, dan pembayaran belum lunas.
+- Dashboard publik distribusi menampilkan ringkasan status tanpa data sensitif.
+- Proteksi konflik sinkronisasi memakai versi data saat beberapa panitia menyimpan perubahan.
 
 ## Backend Google Apps Script
 
