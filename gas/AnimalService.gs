@@ -36,7 +36,7 @@ function validateAnimal(payload) {
     price: Number(payload.price || 0),
     cost: Number(payload.cost || 0),
     status: payload.status || "booking",
-    schedule: toLocalDateTime(payload.schedule),
+    schedule: payload.schedule || "",
     location: String(payload.location || "").trim(),
     carcassWeight: Number(payload.carcassWeight || 0),
     brightEyes: payload.brightEyes === true || payload.brightEyes === "TRUE" || payload.health && payload.health.brightEyes === true,
@@ -58,7 +58,7 @@ function normalizeAnimal(row) {
     price: Number(row.price || 0),
     cost: Number(row.cost || 0),
     status: String(row.status || "booking"),
-    schedule: toLocalDateTime(row.schedule),
+    schedule: toDateOnly(row.schedule),
     location: String(row.location || ""),
     carcassWeight: Number(row.carcassWeight || 0),
     health: {

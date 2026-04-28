@@ -66,22 +66,6 @@ function toDateOnly(value) {
   return text;
 }
 
-function toLocalDateTime(value) {
-  if (!value) return "";
-  if (isDateObject(value)) {
-    return Utilities.formatDate(value, getSpreadsheetTimeZone(), "yyyy-MM-dd'T'HH:mm");
-  }
-
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) return text.slice(0, 16);
-  const parsed = new Date(text);
-  if (!isNaN(parsed.getTime())) {
-    return Utilities.formatDate(parsed, getSpreadsheetTimeZone(), "yyyy-MM-dd'T'HH:mm");
-  }
-  return text;
-}
-
 function normalizePayloadDates(value) {
   if (Array.isArray(value)) return value.map(normalizePayloadDates);
   if (!value || typeof value !== "object" || isDateObject(value)) return value;
@@ -91,9 +75,7 @@ function normalizePayloadDates(value) {
     const item = value[key];
     if (["createdAt", "updatedAt", "scannedAt", "at"].indexOf(key) !== -1) {
       next[key] = toUtcIso(item);
-    } else if (key === "schedule") {
-      next[key] = toLocalDateTime(item);
-    } else if (["date", "start", "end"].indexOf(key) !== -1) {
+    } else if (["date", "start", "end", "schedule"].indexOf(key) !== -1) {
       next[key] = toDateOnly(item);
     } else {
       next[key] = normalizePayloadDates(item);

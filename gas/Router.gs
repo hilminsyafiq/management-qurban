@@ -40,8 +40,8 @@ function savePublicBooking(payload) {
   const total = Number(animal.price || 0) + Number(animal.cost || 0);
   const due = getPackageShareUnits(packageType, animal) >= getShareLimit(animal.type) ? total : Math.ceil(total / getShareLimit(animal.type));
   const participant = saveParticipant({
-    id: "",
-    token: "",
+    id: payload.id || "",
+    token: payload.token || "",
     name: payload.name,
     phone: payload.phone,
     address: payload.address,
@@ -55,23 +55,10 @@ function savePublicBooking(payload) {
 
   const publicData = getPublicAnimals();
   return {
-    participant: sanitizePublicParticipant(participant),
+    participant,
     animals: publicData.animals,
     distribution: publicData.distribution,
     summary: publicData.summary,
-  };
-}
-
-function sanitizePublicParticipant(participant) {
-  if (!participant) return null;
-  return {
-    token: participant.token || "",
-    name: participant.name || "",
-    packageType: participant.packageType || "",
-    paymentMethod: participant.paymentMethod || "",
-    due: Number(participant.due || 0),
-    paid: Number(participant.paid || 0),
-    bookingStatus: participant.bookingStatus || "Menunggu validasi",
   };
 }
 
@@ -124,8 +111,9 @@ function getPublicInvoice(invoice) {
   if (!participant) return { participant: null };
   const animal = listAnimals().find((item) => String(item.id) === String(participant.animalId));
   return {
-    participant: sanitizePublicParticipant(participant),
+    participant,
     animal: animal ? {
+      id: animal.id,
       code: animal.code,
       type: animal.type,
     } : null,
