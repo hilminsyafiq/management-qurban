@@ -481,6 +481,16 @@ th {
   background: #f8fbf6;
 }
 
+.scanner-camera.is-active {
+  border-color: var(--accent);
+  background: #eef8ee;
+}
+
+.scanner-camera.is-fallback {
+  border-color: #d79a2b;
+  background: #fff8e7;
+}
+
 .scanner-camera video {
   width: 100%;
   aspect-ratio: 4 / 3;

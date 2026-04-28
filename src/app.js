@@ -113,6 +113,7 @@ const defaultState = {
       { id: crypto.randomUUID(), name: "Bendahara Qurban", username: "bendahara", password: "bendahara123", role: "Bendahara", phone: "0812-9000-2223", status: "Aktif" },
       { id: crypto.randomUUID(), name: "Koordinator Distribusi", username: "distribusi", password: "distribusi123", role: "Distribusi", phone: "0812-9000-2224", status: "Aktif" },
       { id: crypto.randomUUID(), name: "Petugas Scan", username: "scanner", password: "scanner123", role: "Scanner", phone: "0812-9000-2222", status: "Aktif" },
+      { id: crypto.randomUUID(), name: "Panitia Lapangan", username: "panitia", password: "panitia123", role: "Panitia", phone: "0812-9000-2225", status: "Aktif" },
     ],
     coupons: [],
     scanHistory: [],
@@ -177,6 +178,8 @@ let syncTimer = null;
 let activeRole = "admin";
 let scannerStream = null;
 let scannerTimer = null;
+let scannerDetector = null;
+let scannerBusy = false;
 let lastLoadedVersion = Number(state.meta && state.meta.version || 1);
 const ROLE_LABELS = {
   admin: "Admin penuh",
@@ -227,6 +230,9 @@ const els = {
   scanResult: document.querySelector("#scanResult"),
   scannerVideo: document.querySelector("#scannerVideo"),
   scannerStatus: document.querySelector("#scannerStatus"),
+  scannerCameraPanel: document.querySelector("#scannerCameraPanel"),
+  startScannerBtn: document.querySelector("#startScannerBtn"),
+  stopScannerBtn: document.querySelector("#stopScannerBtn"),
   scanHistoryTable: document.querySelector("#scanHistoryTable"),
   reportStats: document.querySelector("#reportStats"),
   reportsTable: document.querySelector("#reportsTable"),
@@ -372,6 +378,10 @@ function ensureOpsShape() {
     password: user.password || `${normalizeRole(user.role || "panitia")}123`,
     status: user.status || "Aktif",
   }));
+  defaultState.modules.users.forEach((defaultUser) => {
+    const hasUser = state.modules.users.some((user) => String(user.username || "").toLowerCase() === defaultUser.username);
+    if (!hasUser) state.modules.users.push(structuredClone(defaultUser));
+  });
   syncDistributionRecipientsModule();
 }
 
@@ -885,7 +895,12 @@ function renderCouponsView() {
 function renderScanView() {
   if (!els.scanOfficerSelect) return;
   const users = state.modules.users.filter((user) => user.status === "Aktif");
+  const account = getActiveAccount();
+  const currentOfficer = els.scanOfficerSelect.value || (account && account.name) || "";
   els.scanOfficerSelect.innerHTML = users.map((user) => `<option value="${escapeHtml(user.name)}">${escapeHtml(user.name)} - ${escapeHtml(user.role)}</option>`).join("");
+  if (currentOfficer && [...els.scanOfficerSelect.options].some((option) => option.value === currentOfficer)) {
+    els.scanOfficerSelect.value = currentOfficer;
+  }
 }
 
 function renderScanHistory() {
@@ -2296,7 +2311,8 @@ async function importCouponsOrParticipantsFile(file) {
 function scanCoupon() {
   if (!els.scanForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.scanForm));
-  const code = data.couponCode.trim().toUpperCase();
+  const code = normalizeCouponScanValue(data.couponCode);
+  els.scanForm.elements.couponCode.value = code;
   const coupon = state.modules.coupons.find((item) => item.code.toUpperCase() === code);
   const scan = {
     id: crypto.randomUUID(),
@@ -2330,55 +2346,131 @@ function scanCoupon() {
   render();
 }
 
+function normalizeCouponScanValue(value) {
+  const raw = String(value || "").trim();
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  })();
+  const match = decoded.match(/\bKPN[-\s]?(\d{1,8})\b/i);
+  if (match) return `KPN-${match[1].padStart(4, "0")}`;
+  const urlCode = decoded.match(/[?&#](?:code|coupon|couponCode|kupon)=([^&#]+)/i);
+  if (urlCode) return normalizeCouponScanValue(urlCode[1]);
+  return decoded.toUpperCase();
+}
+
+function setScannerUi(status, mode = "idle") {
+  if (els.scannerStatus) els.scannerStatus.textContent = status;
+  if (els.scannerCameraPanel) {
+    els.scannerCameraPanel.classList.toggle("is-active", mode === "active");
+    els.scannerCameraPanel.classList.toggle("is-fallback", mode === "fallback");
+  }
+  if (els.startScannerBtn) els.startScannerBtn.disabled = mode === "active";
+  if (els.stopScannerBtn) els.stopScannerBtn.disabled = !scannerStream;
+}
+
+function focusManualCouponInput(value = "") {
+  if (!els.scanForm || !els.scanForm.elements.couponCode) return;
+  if (value) els.scanForm.elements.couponCode.value = normalizeCouponScanValue(value);
+  els.scanForm.elements.couponCode.focus();
+  els.scanForm.elements.couponCode.select();
+}
+
+function scannerFallback(message) {
+  stopScanner({ silent: true });
+  setScannerUi(`${message} Masukkan kode kupon secara manual lalu tekan Verifikasi manual.`, "fallback");
+  focusManualCouponInput();
+}
+
+function scannerErrorMessage(error) {
+  const name = error && error.name ? error.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "Izin kamera ditolak atau diblokir browser.";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "Kamera belakang tidak ditemukan di perangkat ini.";
+  if (name === "NotReadableError" || name === "AbortError") return "Kamera sedang dipakai aplikasi lain atau belum siap.";
+  return "Kamera tidak dapat dibuka.";
+}
+
+async function makeQrDetector() {
+  if (!("BarcodeDetector" in window)) return null;
+  if (BarcodeDetector.getSupportedFormats) {
+    const formats = await BarcodeDetector.getSupportedFormats();
+    if (!formats.includes("qr_code")) return null;
+  }
+  return new BarcodeDetector({ formats: ["qr_code"] });
+}
+
 async function startScanner() {
   if (!els.scannerVideo || !els.scannerStatus) return;
-  if (!("BarcodeDetector" in window)) {
-    els.scannerStatus.textContent = "Browser ini belum mendukung BarcodeDetector. Pakai Chrome/Edge terbaru atau input kode manual.";
+  if (!["admin", "distribusi", "scanner", "panitia"].includes(activeRole)) {
+    scannerFallback("Role aktif tidak memiliki akses scan kupon.");
     return;
   }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    els.scannerStatus.textContent = "Perangkat tidak memberi akses kamera. Input manual tetap bisa digunakan.";
+    scannerFallback("Browser atau perangkat ini belum menyediakan akses kamera.");
     return;
   }
 
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    stopScanner({ silent: true });
+    scannerDetector = await makeQrDetector();
+    if (!scannerDetector) {
+      scannerFallback("Browser ini belum mendukung pembaca QR kamera.");
+      return;
+    }
+    setScannerUi("Meminta izin kamera...", "active");
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    });
     els.scannerVideo.srcObject = scannerStream;
     await els.scannerVideo.play();
-    els.scannerStatus.textContent = "Kamera aktif. Arahkan QR kupon ke tengah layar.";
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    setScannerUi("Kamera aktif. Arahkan QR kupon ke tengah layar.", "active");
     const scanFrame = async () => {
-      if (!scannerStream) return;
+      if (!scannerStream || scannerBusy) return;
+      scannerBusy = true;
       try {
-        const codes = await detector.detect(els.scannerVideo);
-        const value = codes && codes[0] && codes[0].rawValue ? codes[0].rawValue.trim().toUpperCase() : "";
+        const codes = await scannerDetector.detect(els.scannerVideo);
+        const value = codes && codes[0] && codes[0].rawValue ? normalizeCouponScanValue(codes[0].rawValue) : "";
         if (value) {
-          els.scanForm.elements.couponCode.value = value;
-          els.scannerStatus.textContent = `QR terbaca: ${value}. Memverifikasi kupon...`;
+          focusManualCouponInput(value);
+          setScannerUi(`QR terbaca: ${value}. Memverifikasi kupon...`, "active");
           scanCoupon();
-          stopScanner();
+          stopScanner({ message: "Kamera berhenti setelah QR terbaca. Nyalakan lagi untuk scan kupon berikutnya." });
           return;
         }
       } catch {
         // Continue scanning; intermittent decode failures are normal while the camera moves.
+      } finally {
+        scannerBusy = false;
       }
       scannerTimer = window.setTimeout(scanFrame, 350);
     };
     scanFrame();
   } catch (error) {
-    els.scannerStatus.textContent = error.message || "Kamera tidak dapat dibuka. Periksa izin kamera browser.";
+    scannerFallback(scannerErrorMessage(error));
   }
 }
 
-function stopScanner() {
+function stopScanner(options = {}) {
   window.clearTimeout(scannerTimer);
   scannerTimer = null;
+  scannerBusy = false;
   if (scannerStream) {
     scannerStream.getTracks().forEach((track) => track.stop());
     scannerStream = null;
   }
+  scannerDetector = null;
   if (els.scannerVideo) els.scannerVideo.srcObject = null;
-  if (els.scannerStatus) els.scannerStatus.textContent = "Kamera berhenti. Scanner bisa dinyalakan lagi saat dibutuhkan.";
+  if (!options.silent) {
+    setScannerUi(options.message || "Kamera berhenti. Scanner bisa dinyalakan lagi saat dibutuhkan.", "idle");
+  }
 }
 
 function downloadCouponsReport() {

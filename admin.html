@@ -42,6 +42,7 @@
           <button class="role-btn" data-role-switch="bendahara" type="button">Bendahara</button>
           <button class="role-btn" data-role-switch="distribusi" type="button">Distribusi</button>
           <button class="role-btn" data-role-switch="scanner" type="button">Scanner</button>
+          <button class="role-btn" data-role-switch="panitia" type="button">Panitia</button>
         </div>
         <span class="nav-label">Utama</span>
         <button class="nav-item active" data-view="overview" data-access="admin bendahara distribusi scanner panitia" type="button">Dashboard</button>
@@ -308,19 +309,19 @@
               </div>
               <div class="topbar-actions">
                 <button class="ghost-btn" id="startScannerBtn" type="button">Mulai kamera</button>
-                <button class="ghost-btn" id="stopScannerBtn" type="button">Stop kamera</button>
+                <button class="ghost-btn" id="stopScannerBtn" type="button" disabled>Stop kamera</button>
                 <button class="primary-btn" id="scanCouponBtn" type="button">Verifikasi manual</button>
               </div>
             </div>
             <div class="scanner-camera" id="scannerCameraPanel">
-              <video id="scannerVideo" playsinline muted></video>
+              <video id="scannerVideo" playsinline muted aria-label="Pratinjau kamera scanner QR kupon"></video>
               <div>
                 <strong>Scanner QR kupon</strong>
-                <span id="scannerStatus">Kamera belum aktif. Gunakan input manual jika perangkat tidak mendukung scanner QR.</span>
+                <span id="scannerStatus">Kamera belum aktif. Input manual tetap tersedia jika kamera gagal atau izin ditolak.</span>
               </div>
             </div>
             <form class="scan-panel form-card" id="scanForm">
-              <label>Kode kupon <input name="couponCode" required maxlength="16" placeholder="KPN-0001" /></label>
+              <label>Kode kupon <input name="couponCode" required maxlength="64" placeholder="KPN-0001" autocomplete="off" /></label>
               <label>Nama petugas
                 <select name="officer" id="scanOfficerSelect"></select>
               </label>
