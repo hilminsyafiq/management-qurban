@@ -24,7 +24,10 @@
           <input id="adminPasswordInput" type="password" autocomplete="current-password" required />
         </label>
         <div class="login-error" id="adminLoginError" role="alert"></div>
-        <button class="primary-btn" type="submit">Masuk admin</button>
+        <button class="primary-btn login-submit-btn" id="adminLoginSubmitBtn" type="submit">
+          <span class="login-spinner" aria-hidden="true"></span>
+          <span data-login-label>Masuk admin</span>
+        </button>
       </form>
     </dialog>
     <aside class="sidebar" aria-label="Navigasi aplikasi">

@@ -1312,6 +1312,44 @@ dialog {
   margin-bottom: 0;
 }
 
+.login-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-submit-btn:disabled {
+  cursor: wait;
+  opacity: 0.78;
+  transform: none;
+}
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-top-color: #fff;
+  border-radius: 999px;
+  display: none;
+  animation: loginSpin 700ms linear infinite;
+}
+
+.login-form.is-loading .login-spinner {
+  display: inline-block;
+}
+
+.login-form.is-loading input {
+  cursor: wait;
+  opacity: 0.76;
+}
+
+@keyframes loginSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .login-error {
   min-height: 20px;
   color: var(--danger);
@@ -1599,5 +1637,324 @@ body {
 
   .module-entry-form label:nth-child(5):last-of-type {
     grid-column: auto;
+  }
+}
+
+/* React bundle visual port: modern admin shell while keeping static selectors intact. */
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --ink: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #059669;
+  --accent-strong: #047857;
+  --amber: #d97706;
+  --danger: #dc2626;
+  --soft: #d1fae5;
+  --shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+body {
+  background: #f8fafc;
+  grid-template-columns: 264px minmax(0, 1fr);
+}
+
+body.admin-locked {
+  background:
+    linear-gradient(135deg, rgba(5, 150, 105, 0.94), rgba(4, 120, 87, 0.96) 48%, rgba(6, 78, 59, 0.98)),
+    #064e3b;
+}
+
+.sidebar {
+  background: #fff;
+  color: var(--ink);
+  border-right: 1px solid var(--line);
+  box-shadow: 12px 0 32px rgba(15, 23, 42, 0.05);
+}
+
+.brand strong {
+  color: #111827;
+}
+
+.brand span,
+.sidebar-note {
+  color: #6b7280;
+}
+
+.brand-mark {
+  border-radius: 14px;
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 10px 20px rgba(5, 150, 105, 0.18);
+}
+
+.role-switch {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.role-btn {
+  color: #6b7280;
+}
+
+.role-btn.active {
+  background: #d1fae5;
+  color: #047857;
+  box-shadow: inset 0 0 0 1px rgba(5, 150, 105, 0.14);
+}
+
+.nav-label {
+  color: #9ca3af;
+}
+
+.nav-item,
+.nav-link {
+  color: #374151;
+  border-radius: 10px;
+}
+
+.nav-item.active,
+.nav-item:hover,
+.nav-link:hover {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.nav-item.active {
+  box-shadow: inset 4px 0 0 #059669;
+}
+
+.sidebar-note {
+  border-top-color: #e5e7eb;
+}
+
+.app-shell {
+  padding: 24px;
+}
+
+.topbar {
+  min-height: auto;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  margin: -24px -24px 0;
+  padding: 22px 24px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.04);
+}
+
+.topbar h1 {
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.eyebrow {
+  color: var(--accent);
+}
+
+.summary-grid,
+.ops-grid {
+  gap: 16px;
+}
+
+.metric {
+  min-height: 126px;
+  border: 0;
+  border-radius: 16px;
+  color: #fff;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.1);
+}
+
+.metric::before {
+  display: none;
+}
+
+.metric span {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.metric strong {
+  color: #fff;
+}
+
+.metric:nth-child(1) {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.metric:nth-child(2) {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.metric:nth-child(3) {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.metric:nth-child(4) {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.workspace-main,
+.inspector,
+.form-card,
+.scanner-camera,
+.module-card,
+.animal-card,
+.target-row,
+.validation-item {
+  border-radius: 16px;
+  border-color: var(--line);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.view-panel {
+  padding: clamp(20px, 2.4vw, 30px);
+}
+
+.section-head {
+  border-bottom-color: #eef2f7;
+}
+
+.primary-btn,
+.ghost-btn,
+.icon-btn {
+  border-radius: 10px;
+}
+
+.primary-btn {
+  background: var(--accent);
+  border-color: transparent;
+  box-shadow: 0 14px 26px rgba(5, 150, 105, 0.2);
+}
+
+.primary-btn:hover {
+  background: var(--accent-strong);
+}
+
+.ghost-btn,
+.icon-btn {
+  background: #fff;
+  border-color: #d1d5db;
+}
+
+select,
+input,
+textarea {
+  border-color: #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+}
+
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.12);
+}
+
+.table-wrap {
+  border-radius: 14px;
+  border-color: #e5e7eb;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+}
+
+th {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+td {
+  color: #1f2937;
+}
+
+tr:hover td {
+  background: #f9fafb;
+}
+
+.badge,
+.permission-dot.allowed {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.badge.warn {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.badge.danger,
+.permission-dot {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.progress-track {
+  background: #e5e7eb;
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, #059669, #10b981);
+}
+
+.dashboard-split section {
+  border-top-color: #eef2f7;
+}
+
+.login-dialog {
+  width: min(448px, calc(100vw - 28px));
+}
+
+.login-form {
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 32px 90px rgba(6, 78, 59, 0.28);
+}
+
+.login-form img {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 14px 26px rgba(5, 150, 105, 0.22);
+}
+
+.login-form h2 {
+  font-size: 30px;
+}
+
+.login-form .primary-btn {
+  min-height: 52px;
+  border-radius: 14px;
+}
+
+.animal-card:hover,
+.module-card:hover {
+  box-shadow: 0 22px 46px rgba(15, 23, 42, 0.1);
+}
+
+@media (max-width: 1040px) {
+  body {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    min-height: auto;
+  }
+
+  .topbar {
+    margin: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell,
+  .sidebar {
+    padding: 16px;
+  }
+
+  .topbar {
+    padding: 18px;
+  }
+
+  .metric {
+    min-height: 108px;
   }
 }

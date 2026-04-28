@@ -354,6 +354,7 @@ const els = {
   adminUsernameInput: document.querySelector("#adminUsernameInput"),
   adminPasswordInput: document.querySelector("#adminPasswordInput"),
   adminLoginError: document.querySelector("#adminLoginError"),
+  adminLoginSubmitBtn: document.querySelector("#adminLoginSubmitBtn"),
 };
 
 const moduleConfigs = {
@@ -769,7 +770,9 @@ async function syncRemoteState() {
 async function verifyAdminPassword(password, username = "") {
   if (!canUseRemoteApi()) {
     ensureOpsShape();
-    return findLocalAccount(username, password) || (password.trim() ? makeMasterAccount(username) : null);
+    const account = findLocalAccount(username, password);
+    if (!account) throw new Error("Akun atau password salah.");
+    return account;
   }
 
   const response = await fetch(`${getApiBaseUrl()}?action=state`, {
@@ -839,6 +842,18 @@ function findLocalAccount(username, password) {
       && String(user.username || "").trim().toLowerCase() === normalizedUsername
       && String(user.password || "") === normalizedPassword;
   }) || null;
+}
+
+function setLoginLoading(isLoading) {
+  if (!els.adminLoginForm) return;
+  els.adminLoginForm.classList.toggle("is-loading", isLoading);
+  if (els.adminLoginSubmitBtn) {
+    els.adminLoginSubmitBtn.disabled = isLoading;
+    const label = els.adminLoginSubmitBtn.querySelector("[data-login-label]");
+    if (label) label.textContent = isLoading ? "Memverifikasi..." : "Masuk admin";
+  }
+  if (els.adminUsernameInput) els.adminUsernameInput.disabled = isLoading;
+  if (els.adminPasswordInput) els.adminPasswordInput.disabled = isLoading;
 }
 
 function money(value) {
@@ -3164,6 +3179,7 @@ els.adminLoginForm.addEventListener("submit", async (event) => {
   els.adminLoginError.textContent = "";
   const username = els.adminUsernameInput.value;
   const password = els.adminPasswordInput.value;
+  setLoginLoading(true);
 
   try {
     const account = await verifyAdminPassword(password, username);
@@ -3174,6 +3190,8 @@ els.adminLoginForm.addEventListener("submit", async (event) => {
     render();
   } catch (error) {
     els.adminLoginError.textContent = error.message || "Akun atau password salah.";
+  } finally {
+    setLoginLoading(false);
   }
 });
 
