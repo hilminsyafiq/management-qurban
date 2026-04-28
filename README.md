@@ -4,14 +4,16 @@ Aplikasi frontend statis untuk membantu panitia mencatat hewan qurban, peserta, 
 
 ## Cara Menjalankan
 
-- Buka `index.html` untuk admin panitia.
-- Buka `hewan.html` untuk website publik list hewan qurban.
+- Buka `index.html` atau `/` untuk website publik list hewan qurban.
+- Buka `admin.html` atau `/admin` untuk aplikasi operasional panitia.
+- Buka `hewan.html` atau `/hewan` sebagai alias halaman publik.
 - Data admin lokal tersimpan otomatis di browser melalui `localStorage`.
 
 ## Struktur Folder
 
-- `index.html`: halaman utama aplikasi.
-- `hewan.html`: halaman publik daftar hewan qurban.
+- `index.html`: halaman publik daftar hewan qurban.
+- `hewan.html`: alias halaman publik daftar hewan qurban.
+- `admin.html`: halaman operasional admin/panitia.
 - `src/app.js`: semua logic data, validasi, CRUD, rekap, dan penyimpanan lokal.
 - `src/public-animals.js`: logic tampilan list hewan publik.
 - `src/config.js`: konfigurasi URL Google Apps Script.
@@ -70,7 +72,9 @@ Script Properties yang dipakai:
 Endpoint utama:
 
 - `GET ?action=publicAnimals`: data publik hewan qurban.
+- `GET ?action=publicInvoice`: status invoice publik tanpa membocorkan `id`, `phone`, `address`, atau `animalId`.
 - `GET ?action=state`: semua data admin.
+- `POST action=publicBooking`: booking publik; backend membuat sendiri `id` dan `token/invoice`.
 - `POST action=saveAnimal`: simpan hewan.
 - `POST action=saveParticipant`: simpan peserta.
 - `POST action=saveDistribution`: simpan distribusi.
@@ -108,9 +112,13 @@ Alur yang disiapkan:
    - Value: token yang sama dengan `ADMIN_TOKEN` di Script Properties Apps Script
 4. Deploy Vercel.
 5. Website publik memanggil `/api/gas?action=publicAnimals`.
-6. Admin memanggil `/api/gas?action=state` dan `POST /api/gas`.
-7. File `api/gas.js` meneruskan request ke Google Apps Script memakai `process.env.GAS_WEB_APP_URL` dan `process.env.GAS_ADMIN_TOKEN`.
-8. Setiap panitia yang login melalui URL Vercel akan memuat data terbaru dari Google Sheet dan perubahan akan disinkronkan lewat `syncState`.
+6. Routing halaman Vercel:
+   - `/` menampilkan website publik dari `index.html`.
+   - `/hewan` menampilkan alias publik dari `hewan.html`.
+   - `/admin` menampilkan aplikasi operasional dari `admin.html`.
+7. Admin memanggil `/api/gas?action=state` dan `POST /api/gas`.
+8. File `api/gas.js` meneruskan request ke Google Apps Script memakai `process.env.GAS_WEB_APP_URL` dan `process.env.GAS_ADMIN_TOKEN`.
+9. Setiap panitia yang login melalui URL Vercel akan memuat data terbaru dari Google Sheet dan perubahan akan disinkronkan lewat `syncState`.
 
 Catatan penting:
 

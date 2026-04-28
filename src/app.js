@@ -84,6 +84,10 @@ const defaultState = {
       { date: "2026-01-12", type: "Pemasukan", category: "Tabungan", amount: "500000", note: "Setoran Budi" },
       { date: "2026-01-20", type: "Pengeluaran", category: "Operasional", amount: "250000", note: "Transport vendor" },
     ],
+    slaughterQueue: [
+      { animalCode: "SP-01", batch: "1", order: "1", status: "Siap dipotong", note: "Batch pagi" },
+      { animalCode: "KG-01", batch: "1", order: "2", status: "Menunggu giliran", note: "Setelah sapi" },
+    ],
     meatYield: [
       { animalCode: "SP-01", carcassWeight: "238", bags: "180", note: "Sapi selesai diproses" },
       { animalCode: "KG-01", carcassWeight: "22", bags: "18", note: "Menunggu sembelih" },
@@ -280,6 +284,37 @@ const moduleConfigs = {
       field("note", "Catatan"),
     ],
   },
+  slaughterQueue: {
+    title: "Antrian pemotongan",
+    description: "Atur hewan yang siap dipotong per batch dan urutan kerja.",
+    fields: [
+      field("animalCode", "Kode hewan", { type: "select", source: "animals" }),
+      field("batch", "Batch", { type: "number" }),
+      field("order", "Urutan", { type: "number" }),
+      field("status", "Status", { type: "select", options: ["Menunggu giliran", "Siap dipotong", "Proses potong", "Selesai potong"] }),
+      field("note", "Catatan"),
+    ],
+  },
+  meatYield: {
+    title: "Perolehan daging",
+    description: "Hasil sembelihan dan jumlah kantung.",
+    fields: [
+      field("animalCode", "Kode hewan", { type: "select", source: "slaughterQueue" }),
+      field("carcassWeight", "Bobot karkas", { type: "number", step: "0.1" }),
+      field("bags", "Kantung", { type: "number" }),
+      field("note", "Catatan"),
+    ],
+  },
+  recipients: {
+    title: "Penerima daging",
+    description: "Data penerima paket daging kurban.",
+    fields: [
+      field("name", "Nama/Wilayah/Masjid"),
+      field("category", "Kategori", { type: "select", options: ["Warga", "Mustahik", "Masjid", "Musholla", "Peserta", "Panitia"] }),
+      field("bags", "Kantung", { type: "number" }),
+      field("status", "Status", { type: "select", options: ["Belum diproses", "Siap dibagikan", "Terjadwal", "Terkirim"] }),
+    ],
+  },
   minutes: {
     title: "Notulensi rapat",
     description: "Agenda, keputusan, dan PIC rapat panitia.",
@@ -436,13 +471,28 @@ function toDateOnly(value) {
   return `${year}-${month}-${day}`;
 }
 
+function toLocalDateTime(value) {
+  if (!value) return "";
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) return text.slice(0, 16);
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return text;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 function normalizeDatePayload(value) {
   if (Array.isArray(value)) return value.map(normalizeDatePayload);
   if (!value || typeof value !== "object" || value instanceof Date) return value;
 
   return Object.fromEntries(Object.entries(value).map(([key, item]) => {
     if (["createdAt", "updatedAt", "scannedAt", "at"].includes(key)) return [key, toIsoTimestamp(item)];
-    if (["date", "start", "end", "schedule"].includes(key)) return [key, toDateOnly(item)];
+    if (key === "schedule") return [key, toLocalDateTime(item)];
+    if (["date", "start", "end"].includes(key)) return [key, toDateOnly(item)];
     return [key, normalizeDatePayload(item)];
   }));
 }
@@ -1614,6 +1664,16 @@ function getModuleFieldOptions(moduleField) {
       .map((animal) => animal.code)
       .filter(Boolean);
   }
+  if (moduleField.source === "slaughterQueue") {
+    const allowedStatuses = new Set(["Siap dipotong", "Proses potong", "Selesai potong"]);
+    const queuedCodes = (state.modules.slaughterQueue || [])
+      .filter((item) => allowedStatuses.has(item.status))
+      .sort((a, b) => Number(a.batch || 0) - Number(b.batch || 0) || Number(a.order || 0) - Number(b.order || 0))
+      .map((item) => item.animalCode)
+      .filter(Boolean);
+    const alreadyRecorded = new Set((state.modules.meatYield || []).map((item) => item.animalCode).filter(Boolean));
+    return queuedCodes.filter((code, index) => queuedCodes.indexOf(code) === index && !alreadyRecorded.has(code));
+  }
   return moduleField.options || [];
 }
 
@@ -1848,6 +1908,7 @@ function addModuleRecord(moduleKey) {
   } else {
     state.modules[moduleKey].push(record);
   }
+  applyModuleRecordSideEffects(moduleKey, record);
   markDataChange(
     Number.isInteger(editIndex) && editIndex >= 0 ? "Update data modul" : "Tambah data modul",
     `${moduleConfigs[moduleKey].title}: ${Object.values(record).find(Boolean) || "record baru"}`,
@@ -1858,11 +1919,35 @@ function addModuleRecord(moduleKey) {
 function isDuplicateModuleRecord(moduleKey, record, editIndex = -1) {
   const config = moduleConfigs[moduleKey];
   if (!config) return false;
+  if (["slaughterQueue", "meatYield"].includes(moduleKey)) {
+    return (state.modules[moduleKey] || []).some((item, index) => {
+      return index !== editIndex
+        && normalizeDuplicateValue(item.animalCode) === normalizeDuplicateValue(record.animalCode);
+    });
+  }
   const fields = config.fields.map((moduleField) => moduleField.name);
   return (state.modules[moduleKey] || []).some((item, index) => {
     if (index === editIndex) return false;
     return fields.every((fieldName) => normalizeDuplicateValue(item[fieldName]) === normalizeDuplicateValue(record[fieldName]));
   });
+}
+
+function applyModuleRecordSideEffects(moduleKey, record) {
+  if (moduleKey === "slaughterQueue") {
+    const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
+    if (animal && record.status === "Selesai potong") animal.status = "slaughtered";
+    return;
+  }
+  if (moduleKey === "meatYield") {
+    const animal = state.animals.find((item) => String(item.code || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
+    if (!animal) return;
+    animal.carcassWeight = Number(record.carcassWeight || animal.carcassWeight || 0);
+    if (animal.status === "booking" || animal.status === "paid") {
+      animal.status = "slaughtered";
+    }
+    const queue = (state.modules.slaughterQueue || []).find((item) => String(item.animalCode || "").toUpperCase() === String(record.animalCode || "").toUpperCase());
+    if (queue) queue.status = "Selesai potong";
+  }
 }
 
 function editModuleRecord(moduleKey, index) {

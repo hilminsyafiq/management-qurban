@@ -164,7 +164,6 @@ function makeBookingPayload(formData, animal, invoice = "") {
   const total = Number(animal.price || 0) + Number(animal.cost || 0);
   const packageType = formData.packageType || (animal.type === "Sapi" ? "Patungan sapi" : `${animal.type} individu`);
   return {
-    id: crypto.randomUUID(),
     token: invoice,
     name: String(formData.name || "").trim(),
     phone: String(formData.phone || "").trim(),
@@ -218,7 +217,28 @@ function findLocalInvoice(invoice) {
   const participant = state.participants.find((item) => String(item.token || "").trim().toUpperCase() === normalizedInvoice);
   if (!participant) return null;
   const animal = (state.animals || []).find((item) => String(item.id) === String(participant.animalId));
-  return { participant, animal };
+  return { participant: sanitizePublicParticipant(participant), animal: sanitizePublicAnimalForInvoice(animal) };
+}
+
+function sanitizePublicParticipant(participant) {
+  if (!participant) return null;
+  return {
+    token: participant.token || "",
+    name: participant.name || "",
+    packageType: participant.packageType || "",
+    paymentMethod: participant.paymentMethod || "",
+    due: Number(participant.due || 0),
+    paid: Number(participant.paid || 0),
+    bookingStatus: participant.bookingStatus || "Menunggu validasi",
+  };
+}
+
+function sanitizePublicAnimalForInvoice(animal) {
+  if (!animal) return null;
+  return {
+    code: animal.code || "",
+    type: animal.type || "",
+  };
 }
 
 function makeInitialLocalState() {
@@ -548,7 +568,7 @@ async function submitLocalBooking(formData, animal) {
   if (filled + requested > shareCapacity(currentAnimal.type)) throw new Error("Kuota hewan sudah penuh.");
 
   const invoice = nextLocalInvoice(state);
-  participants.push(makeBookingPayload(formData, currentAnimal, invoice));
+  participants.push({ id: crypto.randomUUID(), ...makeBookingPayload(formData, currentAnimal, invoice) });
   state.participants = participants;
   setLocalState(state);
 

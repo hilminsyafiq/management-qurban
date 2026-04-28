@@ -1,6 +1,16 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/hewan",
+      "destination": "/hewan.html"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

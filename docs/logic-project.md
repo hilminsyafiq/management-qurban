@@ -4,8 +4,8 @@ Project ini dibuat sebagai aplikasi frontend statis yang bisa berjalan lokal den
 
 ## Root
 
-- `index.html`: kerangka aplikasi, navigasi, dashboard, tabel, form dialog, dan area validasi.
-- `hewan.html`: website publik untuk menampilkan daftar hewan qurban, sisa kuota, biaya, bobot, jadwal, dan status.
+- `index.html`: website publik utama untuk menampilkan daftar hewan qurban, sisa kuota, biaya, bobot, jadwal, booking, dan status distribusi.
+- `hewan.html`: alias website publik untuk daftar hewan qurban.
 - `admin.html`: aplikasi operasional Admin/Panitia untuk hewan, peserta, kupon, scan, laporan, dan pengaturan.
 - `vercel.json`: konfigurasi deploy Vercel untuk header dan clean URL.
 - `.env.example`: contoh environment variable Vercel.
@@ -40,13 +40,18 @@ Project ini dibuat sebagai aplikasi frontend statis yang bisa berjalan lokal den
   - simpan `photoUrl` untuk profil/foto hewan di halaman publik.
   - jenis hewan menentukan kuota: sapi 7 peserta, kambing/domba 1 peserta.
   - status hewan: `booking`, `paid`, `slaughtered`, `distributed`.
+  - jadwal sembelih (`schedule`) disimpan sebagai datetime lokal `yyyy-mm-ddThh:mm`; jangan dinormalisasi menjadi date-only karena jam sembelih harus tetap ada.
   - hewan tidak boleh dihapus jika masih punya peserta.
 - Alur hewan sampai pemotongan:
   - Admin mencatat hewan di menu Data Hewan sebagai sumber utama kode hewan, jenis, harga, jadwal, lokasi, dan status.
   - Peserta/booking memilih hewan dari data tersebut, sehingga kuota dan pembayaran terhubung ke `animalId`.
+  - Sebelum pemotongan, panitia membuka `Modul Teknis > Antrian pemotongan` untuk memilih hewan yang akan dipotong.
+  - Antrian pemotongan mendukung batch dan urutan, sehingga panitia bisa mengatur pemotongan 1 per 1, langsung 2 hewan, atau jumlah lain sesuai kondisi lapangan.
+  - Status antrian dapat berupa `Menunggu giliran`, `Siap dipotong`, `Proses potong`, atau `Selesai potong`.
   - Saat hewan dipotong, panitia membuka `Modul Teknis > Perolehan daging`.
-  - Field `Kode hewan` pada Perolehan daging mengambil opsi otomatis dari Data Hewan, bukan input manual.
+  - Field `Kode hewan` pada Perolehan daging hanya mengambil opsi dari hewan yang sudah masuk antrian dan berstatus `Siap dipotong`, `Proses potong`, atau `Selesai potong`.
   - Setelah bobot karkas dan jumlah kantung disimpan, record hewan dengan kode yang sama ikut diperbarui: `carcassWeight` terisi dan status berubah ke `slaughtered` jika sebelumnya masih `booking` atau `paid`.
+  - Setelah Perolehan daging disimpan, item antrian dengan kode hewan yang sama otomatis berubah ke `Selesai potong`.
   - Data perolehan daging tetap tersimpan di `modules.meatYield` sebagai arsip teknis, sedangkan ringkasan utama hewan tetap berada di `animals`.
 - Logic peserta:
   - tambah, edit, hapus peserta.
@@ -57,6 +62,10 @@ Project ini dibuat sebagai aplikasi frontend statis yang bisa berjalan lokal den
   - peserta baru ditolak jika kuota hewan sudah penuh.
   - status pembayaran dihitung dari `paid >= due`.
   - kartu peserta dapat dicetak per peserta atau seluruh peserta dari halaman Peserta.
+- Logic publik:
+  - `publicBooking` hanya menerima data pemesan dan pilihan hewan; backend membuat sendiri `id` dan `token/invoice`.
+  - `publicInvoice` hanya boleh mengembalikan data aman: token, nama, paket, metode pembayaran, tagihan, pembayaran, status booking, serta kode/jenis hewan.
+  - `publicInvoice` tidak boleh membocorkan `id`, `phone`, `address`, atau `animalId`.
 - Logic distribusi:
   - paket warga, mustahik, panitia, dan peserta.
   - total paket masuk ke ringkasan.
@@ -147,8 +156,8 @@ Folder ini dipakai oleh Vercel Serverless Functions.
 4. Connect repo GitHub ke Vercel.
 5. Di Vercel, isi environment variable `GAS_WEB_APP_URL` dan `GAS_ADMIN_TOKEN`.
 6. Vercel deploy website dan endpoint `/api/gas`.
-7. `hewan.html` memanggil `/api/gas?action=publicAnimals`.
-8. `index.html` admin memanggil `/api/gas?action=state` dan sync data lewat `POST /api/gas`.
+7. `/` atau `index.html` memanggil `/api/gas?action=publicAnimals` untuk halaman publik.
+8. `/admin` atau `admin.html` memanggil `/api/gas?action=state` dan sync data lewat `POST /api/gas`.
 9. `/api/gas` meneruskan request ke Google Apps Script dengan token admin untuk action private.
 
 ## Status Pengembangan Lanjutan
