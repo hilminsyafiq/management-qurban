@@ -380,6 +380,42 @@ textarea {
   overflow: auto;
 }
 
+.permission-matrix {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.permission-matrix h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.permission-matrix td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.permission-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 26px;
+  border-radius: 999px;
+  background: #fae3df;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.permission-dot.allowed {
+  background: var(--soft);
+  color: var(--accent-strong);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

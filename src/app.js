@@ -193,6 +193,112 @@ const ROLE_LABELS = {
   panitia: "Panitia",
 };
 
+const ROLE_PERMISSIONS = {
+  admin: ["*"],
+  bendahara: [
+    "overview.view",
+    "participants.view",
+    "participants.write",
+    "participants.validate",
+    "participants.print",
+    "reports.view",
+    "reports.export",
+    "modules.view",
+    "modules.finance.write",
+    "profile.write",
+  ],
+  distribusi: [
+    "overview.view",
+    "animals.view",
+    "coupons.view",
+    "coupons.write",
+    "coupons.delete",
+    "coupons.print",
+    "scan.view",
+    "scan.write",
+    "scanHistory.view",
+    "reports.view",
+    "reports.export",
+    "distribution.view",
+    "distribution.write",
+    "modules.view",
+    "modules.distribution.write",
+    "profile.write",
+  ],
+  scanner: [
+    "overview.view",
+    "scan.view",
+    "scan.write",
+    "scanHistory.view",
+    "profile.write",
+  ],
+  panitia: [
+    "overview.view",
+    "scan.view",
+    "scan.write",
+    "scanHistory.view",
+    "profile.write",
+  ],
+};
+
+const VIEW_PERMISSIONS = {
+  overview: "overview.view",
+  settings: "settings.write",
+  areas: "areas.write",
+  users: "users.write",
+  coupons: "coupons.view",
+  scan: "scan.view",
+  scanHistory: "scanHistory.view",
+  reports: "reports.view",
+  profile: "profile.write",
+  animals: "animals.view",
+  participants: "participants.view",
+  distribution: "distribution.view",
+  modules: "modules.view",
+  audit: "audit.view",
+};
+
+const MODULE_WRITE_PERMISSIONS = {
+  savers: "modules.finance.write",
+  savings: "modules.finance.write",
+  transactions: "modules.finance.write",
+  minutes: "modules.distribution.write",
+  slaughterQueue: "modules.distribution.write",
+  committee: "modules.committee.write",
+  periods: "modules.committee.write",
+};
+
+const BUTTON_PERMISSIONS = {
+  openAnimalFormBtn2: "animals.write",
+  saveAnimalBtn: "animals.write",
+  openParticipantFormBtn: "participants.write",
+  saveParticipantBtn: "participants.write",
+  printParticipantCardsBtn: "participants.print",
+  saveDistributionBtn: "distribution.write",
+  addDistributionTargetBtn: "distribution.write",
+  addDistributionRecipientBtn: "distribution.write",
+  saveModulesBtn: "modules.view",
+  printSavingsBtn: "reports.export",
+  printTransactionsBtn: "reports.export",
+  saveSettingsBtn: "settings.write",
+  addAreaBtn: "areas.write",
+  addUserBtn: "users.write",
+  generateCouponsBtn: "coupons.write",
+  importParticipantCouponsBtn: "coupons.write",
+  importCouponsExcelBtn: "coupons.write",
+  printCouponTemplatesBtn: "coupons.print",
+  addGeneralCouponBtn: "coupons.write",
+  scanCouponBtn: "scan.write",
+  startScannerBtn: "scan.write",
+  stopScannerBtn: "scan.write",
+  downloadCouponsReportBtn: "reports.export",
+  printDistributionReportBtn: "reports.export",
+  exportAuditLogBtn: "audit.export",
+  saveProfileBtn: "profile.write",
+};
+
+const SENSITIVE_AUDIT_FIELDS = new Set(["password", "photoUrl"]);
+
 const els = {
   navItems: document.querySelectorAll(".nav-item"),
   views: document.querySelectorAll(".view-panel"),
@@ -293,26 +399,6 @@ const moduleConfigs = {
       field("order", "Urutan", { type: "number" }),
       field("status", "Status", { type: "select", options: ["Menunggu giliran", "Siap dipotong", "Proses potong", "Selesai potong"] }),
       field("note", "Catatan"),
-    ],
-  },
-  meatYield: {
-    title: "Perolehan daging",
-    description: "Hasil sembelihan dan jumlah kantung.",
-    fields: [
-      field("animalCode", "Kode hewan", { type: "select", source: "slaughterQueue" }),
-      field("carcassWeight", "Bobot karkas", { type: "number", step: "0.1" }),
-      field("bags", "Kantung", { type: "number" }),
-      field("note", "Catatan"),
-    ],
-  },
-  recipients: {
-    title: "Penerima daging",
-    description: "Data penerima paket daging kurban.",
-    fields: [
-      field("name", "Nama/Wilayah/Masjid"),
-      field("category", "Kategori", { type: "select", options: ["Warga", "Mustahik", "Masjid", "Musholla", "Peserta", "Panitia"] }),
-      field("bags", "Kantung", { type: "number" }),
-      field("status", "Status", { type: "select", options: ["Belum diproses", "Siap dibagikan", "Terjadwal", "Terkirim"] }),
     ],
   },
   minutes: {
@@ -501,7 +587,43 @@ function makeSyncPayload() {
   return normalizeDatePayload(structuredClone(state));
 }
 
-function markDataChange(action, detail = "") {
+function hasPermission(permission, role = activeRole) {
+  if (!permission) return true;
+  const permissions = ROLE_PERMISSIONS[normalizeRole(role)] || [];
+  if (permissions.includes("*") || permissions.includes(permission)) return true;
+  const prefix = permission.split(".")[0];
+  return permissions.includes(`${prefix}.*`);
+}
+
+function requirePermission(permission, activity = "melakukan aksi ini") {
+  if (hasPermission(permission)) return true;
+  const label = ROLE_LABELS[activeRole] || "Role ini";
+  alert(`${label} tidak memiliki permission untuk ${activity}.`);
+  return false;
+}
+
+function canWriteModule(moduleKey) {
+  return hasPermission(MODULE_WRITE_PERMISSIONS[moduleKey] || "modules.write");
+}
+
+function summarizeAuditChanges(before, after) {
+  if (!before || !after || typeof before !== "object" || typeof after !== "object") return "";
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((key) => !SENSITIVE_AUDIT_FIELDS.has(key));
+  const changes = keys.filter((key) => JSON.stringify(before[key] ?? "") !== JSON.stringify(after[key] ?? ""));
+  return changes.slice(0, 6).join(", ");
+}
+
+function makeAuditDetail(detail, options = {}) {
+  const parts = [];
+  if (detail) parts.push(detail);
+  const changedFields = options.changedFields || summarizeAuditChanges(options.before, options.after);
+  if (changedFields) parts.push(`Field berubah: ${changedFields}`);
+  if (options.count !== undefined) parts.push(`Jumlah: ${options.count}`);
+  return parts.join(" | ");
+}
+
+function markDataChange(action, detail = "", options = {}) {
   ensureOpsShape();
   const account = getActiveAccount() || makeMasterAccount("admin");
   const nextVersion = Math.max(Number(state.meta.version || 0), lastLoadedVersion) + 1;
@@ -518,7 +640,10 @@ function markDataChange(action, detail = "") {
     username: account.username || "admin",
     role: account.role || "Admin",
     action,
-    detail,
+    permission: options.permission || "",
+    entity: options.entity || "",
+    targetId: options.targetId || "",
+    detail: makeAuditDetail(detail, options),
     version: nextVersion,
   });
   state.modules.auditLog = state.modules.auditLog.slice(0, 500);
@@ -783,6 +908,7 @@ function render() {
   renderSettingsForm();
   renderAreasTable();
   renderUsersTable();
+  renderRolePermissions();
   renderCouponsView();
   renderScanView();
   renderScanHistory();
@@ -886,6 +1012,7 @@ function renderSettingsForm() {
 function renderAreasTable() {
   if (!els.areasTable) return;
   const coupons = state.modules.coupons;
+  const canDelete = hasPermission("areas.delete") || hasPermission("areas.write");
   els.areasTable.innerHTML = state.modules.areas.length ? state.modules.areas.map((area) => {
     const count = coupons.filter((coupon) => coupon.areaId === area.id).length;
     return `
@@ -895,7 +1022,7 @@ function renderAreasTable() {
         <td>${Number(area.quota || 0)}</td>
         <td>${count}</td>
         <td>${escapeHtml(area.notes || "-")}</td>
-        <td><button class="link-btn danger" data-delete-area="${escapeHtml(area.id)}" type="button">Hapus</button></td>
+        <td><button class="link-btn danger" data-delete-area="${escapeHtml(area.id)}" type="button" ${canDelete ? "" : "disabled"}>Hapus</button></td>
       </tr>
     `;
   }).join("") : '<tr><td colspan="6">Belum ada wilayah distribusi.</td></tr>';
@@ -903,6 +1030,8 @@ function renderAreasTable() {
 
 function renderUsersTable() {
   if (!els.usersTable) return;
+  const canWrite = hasPermission("users.write");
+  const canDelete = hasPermission("users.delete") || canWrite;
   els.usersTable.innerHTML = state.modules.users.length ? state.modules.users.map((user) => `
     <tr>
       <td><strong>${escapeHtml(user.name)}</strong></td>
@@ -912,12 +1041,69 @@ function renderUsersTable() {
       <td><span class="badge ${user.status === "Nonaktif" ? "danger" : ""}">${escapeHtml(user.status)}</span></td>
       <td>
         <div class="row-actions">
-          <button class="link-btn" data-edit-user="${escapeHtml(user.id)}" type="button">Edit</button>
-          <button class="link-btn danger" data-delete-user="${escapeHtml(user.id)}" type="button">Hapus</button>
+          <button class="link-btn" data-edit-user="${escapeHtml(user.id)}" type="button" ${canWrite ? "" : "disabled"}>Edit</button>
+          <button class="link-btn danger" data-delete-user="${escapeHtml(user.id)}" type="button" ${canDelete ? "" : "disabled"}>Hapus</button>
         </div>
       </td>
     </tr>
   `).join("") : '<tr><td colspan="6">Belum ada user.</td></tr>';
+}
+
+function renderRolePermissions() {
+  const matrix = document.querySelector("#rolePermissionMatrix");
+  if (!matrix) return;
+  const permissionLabels = {
+    "overview.view": "Dashboard",
+    "settings.write": "Pengaturan",
+    "areas.write": "Wilayah",
+    "users.write": "User",
+    "animals.view": "Lihat hewan",
+    "animals.write": "Kelola hewan",
+    "participants.view": "Lihat peserta",
+    "participants.write": "Kelola peserta",
+    "participants.validate": "Validasi peserta",
+    "participants.print": "Cetak kartu",
+    "coupons.view": "Lihat kupon",
+    "coupons.write": "Kelola kupon",
+    "coupons.delete": "Hapus kupon",
+    "coupons.print": "Cetak kupon",
+    "scan.view": "Halaman scan",
+    "scan.write": "Verifikasi kupon",
+    "scanHistory.view": "Riwayat scan",
+    "reports.view": "Laporan",
+    "reports.export": "Ekspor laporan",
+    "distribution.view": "Lihat distribusi",
+    "distribution.write": "Kelola distribusi",
+    "modules.view": "Modul teknis",
+    "modules.finance.write": "Modul keuangan",
+    "modules.distribution.write": "Modul distribusi",
+    "profile.write": "Profil",
+    "audit.view": "Audit log",
+    "audit.export": "Ekspor audit",
+  };
+  const roles = Object.keys(ROLE_PERMISSIONS);
+  const permissions = Object.keys(permissionLabels);
+  matrix.innerHTML = `
+    <h3>Permission per peran</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Permission</th>
+            ${roles.map((role) => `<th>${escapeHtml(ROLE_LABELS[role] || role)}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${permissions.map((permission) => `
+            <tr>
+              <td>${escapeHtml(permissionLabels[permission])}<small>${escapeHtml(permission)}</small></td>
+              ${roles.map((role) => `<td><span class="permission-dot ${hasPermission(permission, role) ? "allowed" : ""}">${hasPermission(permission, role) ? "Ya" : "Tidak"}</span></td>`).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderCouponsView() {
@@ -925,6 +1111,8 @@ function renderCouponsView() {
     els.couponAreaSelect.innerHTML = state.modules.areas.map((area) => `<option value="${escapeHtml(area.id)}">${escapeHtml(area.name)}</option>`).join("");
   }
   if (!els.couponsTable) return;
+  const canPrint = hasPermission("coupons.print");
+  const canDelete = hasPermission("coupons.delete");
   els.couponsTable.innerHTML = state.modules.coupons.length ? state.modules.coupons.map((coupon) => `
     <tr>
       <td><strong>${escapeHtml(coupon.code)}</strong></td>
@@ -934,8 +1122,8 @@ function renderCouponsView() {
       <td><span class="badge ${coupon.status === "Sudah diterima" ? "" : "warn"}">${escapeHtml(coupon.status)}</span></td>
       <td>
         <div class="row-actions">
-          <button class="link-btn" data-print-coupon="${escapeHtml(coupon.id)}" type="button">Cetak</button>
-          <button class="link-btn danger" data-delete-coupon="${escapeHtml(coupon.id)}" type="button">Hapus</button>
+          <button class="link-btn" data-print-coupon="${escapeHtml(coupon.id)}" type="button" ${canPrint ? "" : "disabled"}>Cetak</button>
+          <button class="link-btn danger" data-delete-coupon="${escapeHtml(coupon.id)}" type="button" ${canDelete ? "" : "disabled"}>Hapus</button>
         </div>
       </td>
     </tr>
@@ -975,10 +1163,14 @@ function renderAuditLog() {
       <td>${escapeHtml(formatDateTime(log.at))}</td>
       <td><strong>${escapeHtml(log.user || log.username || "-")}</strong></td>
       <td>${escapeHtml(log.role || "-")}</td>
+      <td>${escapeHtml(log.permission || "-")}</td>
+      <td>${escapeHtml(log.entity || "-")}</td>
+      <td>${escapeHtml(log.targetId || "-")}</td>
       <td>${escapeHtml(log.action || "-")}</td>
       <td>${escapeHtml(log.detail || "-")}</td>
+      <td>${escapeHtml(log.version || "-")}</td>
     </tr>
-  `).join("") : '<tr><td colspan="5">Belum ada perubahan data.</td></tr>';
+  `).join("") : '<tr><td colspan="9">Belum ada perubahan data.</td></tr>';
 }
 
 function renderReportsView() {
@@ -1014,7 +1206,7 @@ function renderProfileForm() {
   els.profileForm.elements.name.value = account ? account.name : state.modules.profile.name || "";
   els.profileForm.elements.username.value = account ? account.username : "";
   els.profileForm.elements.phone.value = account ? account.phone : state.modules.profile.phone || "";
-  els.profileForm.elements.role.value = activeRole === "admin" ? "Admin" : "Panitia";
+  els.profileForm.elements.role.value = ROLE_LABELS[activeRole] || "Panitia";
   els.profileForm.elements.status.value = account ? account.status : state.modules.profile.status || "Aktif";
 }
 
@@ -1060,6 +1252,8 @@ function renderAnimalsTable() {
     return;
   }
 
+  const canWrite = hasPermission("animals.write");
+  const canDelete = hasPermission("animals.delete") || canWrite;
   els.animalsTable.innerHTML = state.animals
     .map((animal) => {
       return `
@@ -1072,8 +1266,8 @@ function renderAnimalsTable() {
           <td><span class="badge">${escapeHtml(statusLabel(animal.status))}</span></td>
           <td>
             <div class="row-actions">
-              <button class="link-btn" data-edit-animal="${animal.id}" type="button">Edit</button>
-              <button class="link-btn danger" data-delete-animal="${animal.id}" type="button">Hapus</button>
+              <button class="link-btn" data-edit-animal="${animal.id}" type="button" ${canWrite ? "" : "disabled"}>Edit</button>
+              <button class="link-btn danger" data-delete-animal="${animal.id}" type="button" ${canDelete ? "" : "disabled"}>Hapus</button>
             </div>
           </td>
         </tr>
@@ -1088,6 +1282,10 @@ function renderParticipantsTable() {
     return;
   }
 
+  const canWrite = hasPermission("participants.write");
+  const canValidate = hasPermission("participants.validate");
+  const canPrint = hasPermission("participants.print");
+  const canDelete = hasPermission("participants.delete") || canWrite;
   els.participantsTable.innerHTML = state.participants
     .map((participant) => {
       const animal = state.animals.find((item) => item.id === participant.animalId);
@@ -1108,11 +1306,11 @@ function renderParticipantsTable() {
           <td><span class="badge ${className}">${remaining <= 0 ? "Lunas" : `Kurang ${money(remaining)}`}</span></td>
           <td>
             <div class="row-actions">
-              <button class="link-btn" data-validate-participant="${participant.id}" type="button">Validasi</button>
-              <button class="link-btn danger" data-reject-participant="${participant.id}" type="button">Tolak</button>
-              <button class="link-btn" data-edit-participant="${participant.id}" type="button">Edit</button>
-              <button class="link-btn" data-print-participant="${participant.id}" type="button">Cetak</button>
-              <button class="link-btn danger" data-delete-participant="${participant.id}" type="button">Hapus</button>
+              <button class="link-btn" data-validate-participant="${participant.id}" type="button" ${canValidate ? "" : "disabled"}>Validasi</button>
+              <button class="link-btn danger" data-reject-participant="${participant.id}" type="button" ${canValidate ? "" : "disabled"}>Tolak</button>
+              <button class="link-btn" data-edit-participant="${participant.id}" type="button" ${canWrite ? "" : "disabled"}>Edit</button>
+              <button class="link-btn" data-print-participant="${participant.id}" type="button" ${canPrint ? "" : "disabled"}>Cetak</button>
+              <button class="link-btn danger" data-delete-participant="${participant.id}" type="button" ${canDelete ? "" : "disabled"}>Hapus</button>
             </div>
           </td>
         </tr>
@@ -1224,6 +1422,7 @@ function formatDateTime(value) {
 }
 
 function openAnimalForm(animalId) {
+  if (!requirePermission("animals.write", animalId ? "mengedit hewan" : "menambah hewan")) return;
   const form = els.animalForm;
   form.reset();
   setPhotoPreview("");
@@ -1256,6 +1455,7 @@ function openAnimalForm(animalId) {
 }
 
 function openParticipantForm(participantId) {
+  if (!requirePermission("participants.write", participantId ? "mengedit peserta" : "menambah peserta")) return;
   const form = els.participantForm;
   form.reset();
   fillAnimalOptions();
@@ -1280,6 +1480,7 @@ function openParticipantForm(participantId) {
 }
 
 async function saveAnimal() {
+  if (!requirePermission("animals.write", "menyimpan hewan")) return;
   const form = els.animalForm;
   if (!form.reportValidity()) return;
 
@@ -1315,11 +1516,18 @@ async function saveAnimal() {
   };
 
   const index = state.animals.findIndex((item) => item.id === animal.id);
+  const before = index >= 0 ? structuredClone(state.animals[index]) : null;
   if (index >= 0) state.animals[index] = animal;
   else state.animals.push(animal);
 
   els.animalDialog.close();
-  markDataChange(index >= 0 ? "Update hewan" : "Tambah hewan", `${animal.code} - ${animal.type}`);
+  markDataChange(index >= 0 ? "Update hewan" : "Tambah hewan", `${animal.code} - ${animal.type}`, {
+    permission: "animals.write",
+    entity: "animals",
+    targetId: animal.id,
+    before,
+    after: animal,
+  });
   render();
 }
 
@@ -1356,6 +1564,7 @@ function readCompressedPhoto(file) {
 }
 
 function saveParticipant() {
+  if (!requirePermission("participants.write", "menyimpan peserta")) return;
   const form = els.participantForm;
   if (!form.reportValidity()) return;
 
@@ -1413,16 +1622,25 @@ function saveParticipant() {
   };
 
   const index = state.participants.findIndex((item) => item.id === participant.id);
+  const before = index >= 0 ? structuredClone(state.participants[index]) : null;
   if (index >= 0) state.participants[index] = participant;
   else state.participants.push(participant);
 
   els.participantDialog.close();
-  markDataChange(index >= 0 ? "Update peserta" : "Tambah peserta", `${participant.token} - ${participant.name}`);
+  markDataChange(index >= 0 ? "Update peserta" : "Tambah peserta", `${participant.token} - ${participant.name}`, {
+    permission: "participants.write",
+    entity: "participants",
+    targetId: participant.id,
+    before,
+    after: participant,
+  });
   render();
 }
 
 function saveDistribution() {
+  if (!requirePermission("distribution.write", "menyimpan distribusi")) return;
   const data = Object.fromEntries(new FormData(els.distributionForm));
+  const before = structuredClone(state.distribution);
   state.distribution = {
     warga: Number(data.warga || 0),
     mustahik: Number(data.mustahik || 0),
@@ -1431,13 +1649,20 @@ function saveDistribution() {
     notes: data.notes.trim(),
     targets: state.distribution.targets || [],
   };
-  markDataChange("Update distribusi", "Ringkasan paket distribusi diperbarui.");
+  markDataChange("Update distribusi", "Ringkasan paket distribusi diperbarui.", {
+    permission: "distribution.write",
+    entity: "distribution",
+    targetId: "summary",
+    before,
+    after: state.distribution,
+  });
   render();
 }
 
 function renderDistributionTargetsTable() {
   if (!els.distributionTargetsTable) return;
   const targets = state.distribution.targets || [];
+  const canWrite = hasPermission("distribution.write");
   if (!targets.length) {
     els.distributionTargetsTable.innerHTML = '<tr><td colspan="6">Belum ada tujuan distribusi rinci.</td></tr>';
     return;
@@ -1449,14 +1674,14 @@ function renderDistributionTargetsTable() {
       <td>${Number(target.bags || 0)}</td>
       <td>${escapeHtml(target.pic || "-")}</td>
       <td><span class="badge">${escapeHtml(target.status || "-")}</span></td>
-      <td><button class="link-btn danger" data-delete-distribution-target="${index}" type="button">Hapus</button></td>
+      <td><button class="link-btn danger" data-delete-distribution-target="${index}" type="button" ${canWrite ? "" : "disabled"}>Hapus</button></td>
     </tr>
     ${(target.recipients || []).map((recipient, recipientIndex) => `
       <tr class="recipient-row">
         <td colspan="2">${escapeHtml(recipient.name)} <span>${escapeHtml(recipient.contact || "")}</span></td>
         <td>${Number(recipient.bags || 0)}</td>
         <td colspan="2"><span class="badge">${escapeHtml(recipient.status || "-")}</span></td>
-        <td><button class="link-btn danger" data-delete-distribution-recipient="${index}" data-recipient-index="${recipientIndex}" type="button">Hapus</button></td>
+        <td><button class="link-btn danger" data-delete-distribution-recipient="${index}" data-recipient-index="${recipientIndex}" type="button" ${canWrite ? "" : "disabled"}>Hapus</button></td>
       </tr>
     `).join("")}
   `).join("");
@@ -1497,12 +1722,14 @@ function renderDistributionDestinationOptions() {
 }
 
 function addDistributionTarget() {
+  if (!requirePermission("distribution.write", "menambah tujuan distribusi")) return;
   const form = els.distributionTargetForm;
   if (!form.reportValidity()) return;
   const data = Object.fromEntries(new FormData(form));
   state.distribution.targets = state.distribution.targets || [];
   const destination = data.destination.trim();
   const existingTarget = state.distribution.targets.find((target) => normalizeRecipientKey(target.destination, target.category) === normalizeRecipientKey(destination, data.category));
+  const before = existingTarget ? structuredClone(existingTarget) : null;
   if (existingTarget) {
     existingTarget.bags = Number(data.bags || 0);
     existingTarget.pic = data.pic.trim();
@@ -1520,11 +1747,18 @@ function addDistributionTarget() {
   }
   syncDistributionRecipientsModule();
   form.reset();
-  markDataChange(existingTarget ? "Update tujuan distribusi" : "Tambah tujuan distribusi", destination);
+  markDataChange(existingTarget ? "Update tujuan distribusi" : "Tambah tujuan distribusi", destination, {
+    permission: "distribution.write",
+    entity: "distribution.targets",
+    targetId: destination,
+    before,
+    after: existingTarget || state.distribution.targets[state.distribution.targets.length - 1],
+  });
   render();
 }
 
 function addDistributionRecipient() {
+  if (!requirePermission("distribution.write", "menambah penerima distribusi")) return;
   const form = els.distributionRecipientForm;
   if (!form.reportValidity()) return;
   const data = Object.fromEntries(new FormData(form));
@@ -1534,30 +1768,43 @@ function addDistributionRecipient() {
     return;
   }
   target.recipients = target.recipients || [];
-  target.recipients.push({
+  const recipient = {
     name: data.name.trim(),
     contact: data.contact.trim(),
     bags: Number(data.bags || 0),
     status: data.status,
-  });
+  };
+  target.recipients.push(recipient);
   syncDistributionRecipientsModule();
   form.reset();
-  markDataChange("Tambah penerima distribusi", `${data.name.trim()} - ${target.destination}`);
+  markDataChange("Tambah penerima distribusi", `${data.name.trim()} - ${target.destination}`, {
+    permission: "distribution.write",
+    entity: "distribution.recipients",
+    targetId: data.name.trim(),
+    after: recipient,
+  });
   render();
 }
 
 function deleteDistributionRecipient(targetIndex, recipientIndex) {
+  if (!requirePermission("distribution.write", "menghapus penerima distribusi")) return;
   const target = state.distribution.targets[targetIndex];
   if (!target || !target.recipients) return;
   if (!window.confirm("Hapus penerima ini dari daftar distribusi?")) return;
   const removed = target.recipients[recipientIndex];
   target.recipients.splice(recipientIndex, 1);
   syncDistributionRecipientsModule();
-  markDataChange("Hapus penerima distribusi", removed ? removed.name : `Index ${recipientIndex}`);
+  markDataChange("Hapus penerima distribusi", removed ? removed.name : `Index ${recipientIndex}`, {
+    permission: "distribution.write",
+    entity: "distribution.recipients",
+    targetId: removed ? removed.name : String(recipientIndex),
+    before: removed,
+  });
   render();
 }
 
 function deleteDistributionTarget(index) {
+  if (!requirePermission("distribution.write", "menghapus tujuan distribusi")) return;
   state.distribution.targets = state.distribution.targets || [];
   if (!window.confirm("Hapus tujuan distribusi ini beserta penerima di bawahnya?")) return;
   const removed = state.distribution.targets[index];
@@ -1567,7 +1814,12 @@ function deleteDistributionTarget(index) {
     state.modules.recipients = state.modules.recipients.filter((recipient) => normalizeRecipientKey(recipient.name, recipient.category) !== removedKey);
   }
   syncDistributionRecipientsModule();
-  markDataChange("Hapus tujuan distribusi", removed ? removed.destination : `Index ${index}`);
+  markDataChange("Hapus tujuan distribusi", removed ? removed.destination : `Index ${index}`, {
+    permission: "distribution.write",
+    entity: "distribution.targets",
+    targetId: removed ? removed.destination : String(index),
+    before: removed,
+  });
   render();
 }
 
@@ -1580,10 +1832,11 @@ function renderModulesForm() {
   `).join("");
   const moduleCards = entries.map(([key, config], index) => {
     const rows = state.modules[key] || [];
+    const canWrite = canWriteModule(key);
     const fields = config.fields.map((moduleField) => `
       <label>
         ${escapeHtml(moduleField.label)}
-        ${renderModuleFieldControl(moduleField)}
+        ${renderModuleFieldControl(moduleField, canWrite)}
         ${moduleField.type === "number" ? "<small>Isi angka tanpa titik atau koma.</small>" : ""}
       </label>
     `).join("");
@@ -1592,8 +1845,8 @@ function renderModulesForm() {
         ${config.fields.map((moduleField) => `<td>${escapeHtml(row[moduleField.name] || "-")}</td>`).join("")}
         <td>
           <div class="row-actions">
-            <button class="link-btn" data-module-edit="${escapeHtml(key)}" data-module-index="${index}" type="button">Edit</button>
-            <button class="link-btn danger" data-module-delete="${escapeHtml(key)}" data-module-index="${index}" type="button">Hapus</button>
+            <button class="link-btn" data-module-edit="${escapeHtml(key)}" data-module-index="${index}" type="button" ${canWrite ? "" : "disabled"}>Edit</button>
+            <button class="link-btn danger" data-module-delete="${escapeHtml(key)}" data-module-index="${index}" type="button" ${canWrite ? "" : "disabled"}>Hapus</button>
           </div>
         </td>
       </tr>
@@ -1606,7 +1859,7 @@ function renderModulesForm() {
             <h3>${escapeHtml(config.title)}</h3>
             <p>${escapeHtml(config.description)}</p>
           </div>
-          <button class="primary-btn" data-module-add="${escapeHtml(key)}" type="button">Tambah</button>
+          <button class="primary-btn" data-module-add="${escapeHtml(key)}" type="button" ${canWrite ? "" : "disabled"}>Tambah</button>
         </div>
         <form class="module-entry-form" data-module-form="${escapeHtml(key)}">
           <input name="__editIndex" type="hidden" value="" />
@@ -1635,12 +1888,13 @@ function renderModulesForm() {
   `;
 }
 
-function renderModuleFieldControl(moduleField) {
+function renderModuleFieldControl(moduleField, enabled = true) {
+  const disabled = enabled ? "" : " disabled";
   if (moduleField.type === "select") {
     const options = getModuleFieldOptions(moduleField);
     const placeholder = moduleField.source === "savers" && !options.length ? "Tambah penabung dulu" : `Pilih ${moduleField.label}`;
     return `
-      <select name="${escapeHtml(moduleField.name)}" data-module-field="${escapeHtml(moduleField.name)}" required>
+      <select name="${escapeHtml(moduleField.name)}" data-module-field="${escapeHtml(moduleField.name)}" required${disabled}>
         <option value="">${escapeHtml(placeholder)}</option>
         ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
       </select>
@@ -1650,7 +1904,7 @@ function renderModuleFieldControl(moduleField) {
   const step = moduleField.step ? ` step="${escapeHtml(moduleField.step)}"` : "";
   const numericAttrs = moduleField.type === "number" ? ` min="0" max="999999999" inputmode="numeric"` : "";
   const textAttrs = moduleField.type === "text" || moduleField.type === "tel" ? ` maxlength="100"` : "";
-  return `<input name="${escapeHtml(moduleField.name)}" type="${escapeHtml(moduleField.type)}"${step}${numericAttrs}${textAttrs} data-module-field="${escapeHtml(moduleField.name)}" required />`;
+  return `<input name="${escapeHtml(moduleField.name)}" type="${escapeHtml(moduleField.type)}"${step}${numericAttrs}${textAttrs} data-module-field="${escapeHtml(moduleField.name)}" required${disabled} />`;
 }
 
 function getModuleFieldOptions(moduleField) {
@@ -1678,12 +1932,18 @@ function getModuleFieldOptions(moduleField) {
 }
 
 function saveModules() {
+  if (!requirePermission("modules.view", "menyimpan modul teknis")) return;
   ensureModuleShape();
-  markDataChange("Simpan modul teknis", "Data modul teknis diperiksa dan disimpan.");
+  markDataChange("Simpan modul teknis", "Data modul teknis diperiksa dan disimpan.", {
+    permission: "modules.view",
+    entity: "modules",
+    targetId: "all",
+  });
   render();
 }
 
 function printModuleReport(title, content) {
+  if (!requirePermission("reports.export", "mencetak laporan modul")) return;
   const printableContent = Array.isArray(content) ? moduleRowsToText(content) : content;
   const report = window.open("", "_blank", "width=900,height=700");
   if (!report) return;
@@ -1710,6 +1970,7 @@ function printModuleReport(title, content) {
 }
 
 function printParticipantCards(participantIds) {
+  if (!requirePermission("participants.print", "mencetak kartu peserta")) return;
   const ids = Array.isArray(participantIds) ? participantIds : [];
   const participants = ids.length
     ? state.participants.filter((participant) => ids.includes(participant.id))
@@ -1882,6 +2143,8 @@ function moduleRowsToText(rows) {
 }
 
 function addModuleRecord(moduleKey) {
+  const permission = MODULE_WRITE_PERMISSIONS[moduleKey] || "modules.write";
+  if (!requirePermission(permission, `mengubah modul ${moduleConfigs[moduleKey] ? moduleConfigs[moduleKey].title : moduleKey}`)) return;
   const config = moduleConfigs[moduleKey];
   const form = document.querySelector(`[data-module-form="${moduleKey}"]`);
   if (!config || !form) return;
@@ -1903,6 +2166,9 @@ function addModuleRecord(moduleKey) {
     alert("Data yang sama sudah ada di modul ini.");
     return;
   }
+  const before = Number.isInteger(editIndex) && editIndex >= 0 && state.modules[moduleKey][editIndex]
+    ? structuredClone(state.modules[moduleKey][editIndex])
+    : null;
   if (Number.isInteger(editIndex) && editIndex >= 0 && state.modules[moduleKey][editIndex]) {
     state.modules[moduleKey][editIndex] = record;
   } else {
@@ -1912,6 +2178,13 @@ function addModuleRecord(moduleKey) {
   markDataChange(
     Number.isInteger(editIndex) && editIndex >= 0 ? "Update data modul" : "Tambah data modul",
     `${moduleConfigs[moduleKey].title}: ${Object.values(record).find(Boolean) || "record baru"}`,
+    {
+      permission,
+      entity: `modules.${moduleKey}`,
+      targetId: String(Number.isInteger(editIndex) && editIndex >= 0 ? editIndex : state.modules[moduleKey].length - 1),
+      before,
+      after: record,
+    },
   );
   render();
 }
@@ -1966,15 +2239,23 @@ function editModuleRecord(moduleKey, index) {
 }
 
 function deleteModuleRecord(moduleKey, index) {
+  const permission = MODULE_WRITE_PERMISSIONS[moduleKey] || "modules.write";
+  if (!requirePermission(permission, `menghapus modul ${moduleConfigs[moduleKey] ? moduleConfigs[moduleKey].title : moduleKey}`)) return;
   if (!window.confirm("Hapus data modul ini? Data akan hilang dari penyimpanan lokal.")) return;
   ensureModuleShape();
   const removed = state.modules[moduleKey][index];
   state.modules[moduleKey].splice(index, 1);
-  markDataChange("Hapus data modul", `${moduleConfigs[moduleKey].title}: ${removed ? Object.values(removed).find(Boolean) : index}`);
+  markDataChange("Hapus data modul", `${moduleConfigs[moduleKey].title}: ${removed ? Object.values(removed).find(Boolean) : index}`, {
+    permission,
+    entity: `modules.${moduleKey}`,
+    targetId: String(index),
+    before: removed,
+  });
   render();
 }
 
 function deleteAnimal(animalId) {
+  if (!hasPermission("animals.delete") && !requirePermission("animals.write", "menghapus hewan")) return;
   if (participantsFor(animalId).length) {
     alert("Hewan masih punya peserta. Pindahkan atau hapus peserta dulu.");
     return;
@@ -1982,23 +2263,42 @@ function deleteAnimal(animalId) {
   if (!window.confirm("Hapus data hewan ini? Data akan hilang dari penyimpanan lokal.")) return;
   const removed = state.animals.find((animal) => animal.id === animalId);
   state.animals = state.animals.filter((animal) => animal.id !== animalId);
-  markDataChange("Hapus hewan", removed ? removed.code : animalId);
+  markDataChange("Hapus hewan", removed ? removed.code : animalId, {
+    permission: "animals.delete",
+    entity: "animals",
+    targetId: animalId,
+    before: removed,
+  });
   render();
 }
 
 function deleteParticipant(participantId) {
+  if (!hasPermission("participants.delete") && !requirePermission("participants.write", "menghapus peserta")) return;
   if (!window.confirm("Hapus data peserta ini? Data akan hilang dari penyimpanan lokal.")) return;
   const removed = state.participants.find((participant) => participant.id === participantId);
   state.participants = state.participants.filter((participant) => participant.id !== participantId);
-  markDataChange("Hapus peserta", removed ? `${removed.token} - ${removed.name}` : participantId);
+  markDataChange("Hapus peserta", removed ? `${removed.token} - ${removed.name}` : participantId, {
+    permission: "participants.delete",
+    entity: "participants",
+    targetId: participantId,
+    before: removed,
+  });
   render();
 }
 
 function setParticipantValidation(participantId, bookingStatus) {
+  if (!requirePermission("participants.validate", "memvalidasi peserta")) return;
   const participant = state.participants.find((item) => item.id === participantId);
   if (!participant) return;
+  const before = structuredClone(participant);
   participant.bookingStatus = bookingStatus;
-  markDataChange("Validasi booking", `${participant.token || "-"} - ${participant.name}: ${bookingStatus}`);
+  markDataChange("Validasi booking", `${participant.token || "-"} - ${participant.name}: ${bookingStatus}`, {
+    permission: "participants.validate",
+    entity: "participants",
+    targetId: participant.id,
+    before,
+    after: participant,
+  });
   render();
 }
 
@@ -2033,7 +2333,9 @@ function suggestDue(animalId, packageType = "") {
 }
 
 function saveSettings() {
+  if (!requirePermission("settings.write", "menyimpan pengaturan")) return;
   const data = Object.fromEntries(new FormData(els.settingsForm));
+  const before = structuredClone(state.modules.appSettings);
   state.modules.appSettings = {
     institutionName: data.institutionName.trim(),
     qurbanYear: data.qurbanYear.trim(),
@@ -2043,11 +2345,18 @@ function saveSettings() {
     appStatus: data.appStatus,
     notes: data.notes.trim(),
   };
-  markDataChange("Update pengaturan", state.modules.appSettings.institutionName);
+  markDataChange("Update pengaturan", state.modules.appSettings.institutionName, {
+    permission: "settings.write",
+    entity: "modules.appSettings",
+    targetId: "appSettings",
+    before,
+    after: state.modules.appSettings,
+  });
   render();
 }
 
 function addArea() {
+  if (!requirePermission("areas.write", "menambah wilayah")) return;
   if (!els.areaForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.areaForm));
   const duplicateArea = state.modules.areas.some((area) => String(area.name || "").trim().toLowerCase() === data.name.trim().toLowerCase());
@@ -2057,19 +2366,26 @@ function addArea() {
     els.areaForm.elements.name.setCustomValidity("");
     return;
   }
-  state.modules.areas.push({
+  const area = {
     id: crypto.randomUUID(),
     name: data.name.trim(),
     coordinator: data.coordinator.trim(),
     quota: Number(data.quota || 0),
     notes: data.notes.trim(),
-  });
+  };
+  state.modules.areas.push(area);
   els.areaForm.reset();
-  markDataChange("Tambah wilayah", data.name.trim());
+  markDataChange("Tambah wilayah", data.name.trim(), {
+    permission: "areas.write",
+    entity: "modules.areas",
+    targetId: area.id,
+    after: area,
+  });
   render();
 }
 
 function addUser() {
+  if (!requirePermission("users.write", "menyimpan user")) return;
   if (!els.userForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.userForm));
   const userId = data.id || "";
@@ -2093,17 +2409,25 @@ function addUser() {
     status: data.status,
   };
   const index = state.modules.users.findIndex((item) => item.id === user.id);
+  const before = index >= 0 ? structuredClone(state.modules.users[index]) : null;
   if (index >= 0) state.modules.users[index] = user;
   else state.modules.users.push(user);
   els.userForm.reset();
   if (els.userForm.elements.id) els.userForm.elements.id.value = "";
   const addUserBtn = document.querySelector("#addUserBtn");
   if (addUserBtn) addUserBtn.textContent = "Tambah user";
-  markDataChange(index >= 0 ? "Update user" : "Tambah user", `${data.username.trim()} - ${data.role}`);
+  markDataChange(index >= 0 ? "Update user" : "Tambah user", `${data.username.trim()} - ${data.role}`, {
+    permission: "users.write",
+    entity: "modules.users",
+    targetId: user.id,
+    before,
+    after: user,
+  });
   render();
 }
 
 function editUser(userId) {
+  if (!requirePermission("users.write", "mengedit user")) return;
   const user = state.modules.users.find((item) => item.id === userId);
   if (!user) return;
   els.userForm.elements.id.value = user.id;
@@ -2141,6 +2465,7 @@ function createCoupon({ recipientName = "", areaId = "", category = "Umum", sour
 }
 
 function generateCoupons() {
+  if (!requirePermission("coupons.write", "generate kupon")) return;
   if (!els.couponGenerateForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.couponGenerateForm));
   const count = Math.min(500, Math.max(1, Number(data.count || 1)));
@@ -2152,11 +2477,16 @@ function generateCoupons() {
       source: "generated",
     }));
   }
-  markDataChange("Generate kupon", `${count} kupon kategori ${data.category}.`);
+  markDataChange("Generate kupon", `${count} kupon kategori ${data.category}.`, {
+    permission: "coupons.write",
+    entity: "modules.coupons",
+    count,
+  });
   render();
 }
 
 function addGeneralCoupon() {
+  if (!requirePermission("coupons.write", "menambah kupon umum")) return;
   const data = Object.fromEntries(new FormData(els.couponGenerateForm));
   const duplicateCoupon = state.modules.coupons.some((coupon) => {
     return normalizeDuplicateValue(coupon.recipientName || "Kupon umum") === normalizeDuplicateValue(data.recipientName || "Kupon umum")
@@ -2167,19 +2497,27 @@ function addGeneralCoupon() {
     alert("Kupon umum dengan penerima dan wilayah yang sama sudah ada.");
     return;
   }
-  state.modules.coupons.push(createCoupon({
+  const coupon = createCoupon({
     recipientName: data.recipientName.trim(),
     areaId: data.areaId,
     category: "Umum",
     source: "general",
-  }));
-  markDataChange("Tambah kupon umum", data.recipientName.trim() || "Kupon umum");
+  });
+  state.modules.coupons.push(coupon);
+  markDataChange("Tambah kupon umum", data.recipientName.trim() || "Kupon umum", {
+    permission: "coupons.write",
+    entity: "modules.coupons",
+    targetId: coupon.id,
+    after: coupon,
+  });
   render();
 }
 
 function importParticipantCoupons() {
+  if (!requirePermission("coupons.write", "import kupon pengkurban")) return;
   const defaultArea = state.modules.areas[0] ? state.modules.areas[0].id : "";
   const existingNames = new Set(state.modules.coupons.map((coupon) => `${coupon.category}:${coupon.recipientName}`));
+  let importedCount = 0;
   state.participants.forEach((participant) => {
     const key = `Pengkurban:${participant.name}`;
     if (existingNames.has(key)) return;
@@ -2190,8 +2528,13 @@ function importParticipantCoupons() {
       source: "participant",
     }));
     existingNames.add(key);
+    importedCount += 1;
   });
-  markDataChange("Import kupon pengkurban", `${state.participants.length} peserta dicek sebagai sumber kupon.`);
+  markDataChange("Import kupon pengkurban", `${state.participants.length} peserta dicek sebagai sumber kupon.`, {
+    permission: "coupons.write",
+    entity: "modules.coupons",
+    count: importedCount,
+  });
   render();
 }
 
@@ -2200,6 +2543,7 @@ function qrImageUrl(code) {
 }
 
 function printCouponTemplates(couponIds) {
+  if (!requirePermission("coupons.print", "mencetak kupon")) return;
   const ids = Array.isArray(couponIds) ? couponIds : [];
   const coupons = ids.length ? state.modules.coupons.filter((coupon) => ids.includes(coupon.id)) : state.modules.coupons;
   if (!coupons.length) {
@@ -2326,6 +2670,7 @@ function rowValue(row, headers, names) {
 }
 
 async function importCouponsOrParticipantsFile(file) {
+  if (!requirePermission("coupons.write", "import Excel/CSV")) return;
   if (!file) return;
   const rows = await readImportRows(file);
   if (rows.length < 2) {
@@ -2388,17 +2733,24 @@ async function importCouponsOrParticipantsFile(file) {
     couponCount += 1;
   });
 
-  markDataChange("Import Excel/CSV", `${couponCount} kupon dan ${participantCount} peserta berhasil diimpor dari ${file.name}.`);
+  markDataChange("Import Excel/CSV", `${couponCount} kupon dan ${participantCount} peserta berhasil diimpor dari ${file.name}.`, {
+    permission: "coupons.write",
+    entity: "import",
+    targetId: file.name,
+    count: couponCount + participantCount,
+  });
   render();
   alert(`Import selesai: ${couponCount} kupon, ${participantCount} peserta.`);
 }
 
 function scanCoupon() {
+  if (!requirePermission("scan.write", "scan kupon")) return;
   if (!els.scanForm.reportValidity()) return;
   const data = Object.fromEntries(new FormData(els.scanForm));
   const code = normalizeCouponScanValue(data.couponCode);
   els.scanForm.elements.couponCode.value = code;
   const coupon = state.modules.coupons.find((item) => item.code.toUpperCase() === code);
+  const before = coupon ? structuredClone(coupon) : null;
   const scan = {
     id: crypto.randomUUID(),
     couponCode: code,
@@ -2427,7 +2779,14 @@ function scanCoupon() {
 
   state.modules.scanHistory.push(scan);
   els.scanForm.reset();
-  markDataChange("Scan kupon", `${scan.couponCode}: ${scan.status}`);
+  markDataChange("Scan kupon", `${scan.couponCode}: ${scan.status}`, {
+    permission: "scan.write",
+    entity: "modules.scanHistory",
+    targetId: scan.couponCode,
+    before,
+    after: scan,
+    changedFields: before ? "status, scannedAt, officer" : "",
+  });
   render();
 }
 
@@ -2489,7 +2848,7 @@ async function makeQrDetector() {
 
 async function startScanner() {
   if (!els.scannerVideo || !els.scannerStatus) return;
-  if (!["admin", "distribusi", "scanner", "panitia"].includes(activeRole)) {
+  if (!hasPermission("scan.write")) {
     scannerFallback("Role aktif tidak memiliki akses scan kupon.");
     return;
   }
@@ -2559,6 +2918,7 @@ function stopScanner(options = {}) {
 }
 
 function downloadCouponsReport() {
+  if (!requirePermission("reports.export", "mengunduh laporan kupon")) return;
   const settings = state.modules.appSettings || {};
   const rows = state.modules.coupons.map((coupon) => [
     coupon.code,
@@ -2583,6 +2943,7 @@ function downloadCouponsReport() {
 }
 
 function printDistributionReport() {
+  if (!requirePermission("reports.export", "mencetak laporan distribusi")) return;
   const settings = state.modules.appSettings;
   const rows = state.modules.areas.map((area) => {
     const coupons = state.modules.coupons.filter((coupon) => coupon.areaId === area.id);
@@ -2646,9 +3007,20 @@ function printTableReport(title, headers, rows) {
 }
 
 function exportAuditLog() {
+  if (!requirePermission("audit.export", "mengekspor audit log")) return;
   const logs = state.modules.auditLog || [];
-  const rows = logs.map((log) => [formatDateTime(log.at), log.user || log.username || "-", log.role || "-", log.action || "-", log.detail || "-"]);
-  const html = makeReportWorkbook("Audit Log QurbanOps", ["Waktu", "User", "Role", "Aksi", "Detail"], rows);
+  const rows = logs.map((log) => [
+    formatDateTime(log.at),
+    log.user || log.username || "-",
+    log.role || "-",
+    log.permission || "-",
+    log.entity || "-",
+    log.targetId || "-",
+    log.action || "-",
+    log.detail || "-",
+    log.version || "-",
+  ]);
+  const html = makeReportWorkbook("Audit Log QurbanOps", ["Waktu", "User", "Role", "Permission", "Entity", "Target", "Aksi", "Detail", "Versi"], rows);
   const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -2658,7 +3030,9 @@ function exportAuditLog() {
 }
 
 function saveProfile() {
+  if (!requirePermission("profile.write", "menyimpan profil")) return;
   const account = getActiveAccount();
+  const before = structuredClone(state.modules.profile);
   state.modules.profile = {
     name: els.profileForm.elements.name.value.trim(),
     phone: els.profileForm.elements.phone.value.trim(),
@@ -2672,7 +3046,13 @@ function saveProfile() {
       setActiveAccount(user);
     }
   }
-  markDataChange("Update profil", state.modules.profile.name);
+  markDataChange("Update profil", state.modules.profile.name, {
+    permission: "profile.write",
+    entity: "modules.profile",
+    targetId: account && account.id ? account.id : "profile",
+    before,
+    after: state.modules.profile,
+  });
   render();
 }
 
@@ -2683,6 +3063,10 @@ function setActiveRole(role) {
   render();
 }
 
+function permissionForView(viewName) {
+  return VIEW_PERMISSIONS[viewName] || "";
+}
+
 function applyRoleAccess() {
   const account = getActiveAccount();
   const canSwitchRoles = !account || normalizeRole(account.role) === "admin";
@@ -2690,9 +3074,16 @@ function applyRoleAccess() {
     button.classList.toggle("active", button.dataset.roleSwitch === activeRole);
     button.disabled = !canSwitchRoles && button.dataset.roleSwitch !== activeRole;
   });
-  document.querySelectorAll("[data-access]").forEach((item) => {
-    const allowed = item.dataset.access.split(" ").includes(activeRole);
+  els.navItems.forEach((item) => {
+    const allowed = hasPermission(permissionForView(item.dataset.view));
     item.hidden = !allowed;
+  });
+  Object.entries(BUTTON_PERMISSIONS).forEach(([id, permission]) => {
+    const button = document.querySelector(`#${id}`);
+    if (!button) return;
+    const allowed = hasPermission(permission);
+    button.hidden = !allowed;
+    button.disabled = !allowed;
   });
   if (els.activeRoleNote) {
     const label = ROLE_LABELS[activeRole] || "Panitia";
@@ -2869,8 +3260,10 @@ document.addEventListener("click", (event) => {
   if (deleteDistributionTargetIndex !== undefined) deleteDistributionTarget(Number(deleteDistributionTargetIndex));
   if (deleteDistributionRecipientTarget !== undefined) deleteDistributionRecipient(Number(deleteDistributionRecipientTarget), Number(deleteDistributionRecipientIndex));
   if (deleteAreaId) {
+    if (!hasPermission("areas.delete") && !requirePermission("areas.write", "menghapus wilayah")) return;
     if (!window.confirm("Hapus wilayah ini? Kupon yang memakai wilayah ini akan kehilangan referensi wilayah.")) return;
     const removedArea = state.modules.areas.find((area) => area.id === deleteAreaId);
+    const before = removedArea ? structuredClone(removedArea) : null;
     state.modules.areas = state.modules.areas.filter((area) => area.id !== deleteAreaId);
     state.modules.coupons.forEach((coupon) => {
       if (coupon.areaId === deleteAreaId) coupon.areaId = "";
@@ -2881,21 +3274,38 @@ document.addEventListener("click", (event) => {
       state.modules.recipients = (state.modules.recipients || []).filter((recipient) => String(recipient.name || "").trim().toLowerCase() !== removedKey);
       syncDistributionRecipientsModule();
     }
-    markDataChange("Hapus wilayah", removedArea ? removedArea.name : deleteAreaId);
+    markDataChange("Hapus wilayah", removedArea ? removedArea.name : deleteAreaId, {
+      permission: "areas.delete",
+      entity: "modules.areas",
+      targetId: deleteAreaId,
+      before,
+    });
     render();
   }
   if (deleteUserId) {
+    if (!hasPermission("users.delete") && !requirePermission("users.write", "menghapus user")) return;
     if (!window.confirm("Hapus user ini? Akun tidak bisa dipakai lagi setelah dihapus.")) return;
     const removed = state.modules.users.find((user) => user.id === deleteUserId);
     state.modules.users = state.modules.users.filter((user) => user.id !== deleteUserId);
-    markDataChange("Hapus user", removed ? removed.username : deleteUserId);
+    markDataChange("Hapus user", removed ? removed.username : deleteUserId, {
+      permission: "users.delete",
+      entity: "modules.users",
+      targetId: deleteUserId,
+      before: removed,
+    });
     render();
   }
   if (deleteCouponId) {
+    if (!requirePermission("coupons.delete", "menghapus kupon")) return;
     if (!window.confirm("Hapus kupon ini? Data kupon akan hilang dari penyimpanan lokal.")) return;
     const removed = state.modules.coupons.find((coupon) => coupon.id === deleteCouponId);
     state.modules.coupons = state.modules.coupons.filter((coupon) => coupon.id !== deleteCouponId);
-    markDataChange("Hapus kupon", removed ? removed.code : deleteCouponId);
+    markDataChange("Hapus kupon", removed ? removed.code : deleteCouponId, {
+      permission: "coupons.delete",
+      entity: "modules.coupons",
+      targetId: deleteCouponId,
+      before: removed,
+    });
     render();
   }
 });
