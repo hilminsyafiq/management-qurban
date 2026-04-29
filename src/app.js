@@ -2553,8 +2553,269 @@ function importParticipantCoupons() {
   render();
 }
 
+const QR_VERSION = 4;
+const QR_SIZE = QR_VERSION * 4 + 17;
+const QR_DATA_CODEWORDS = 80;
+const QR_ECC_CODEWORDS = 20;
+
 function qrImageUrl(code) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(String(code || "").trim().toUpperCase())}`;
+  const text = String(code || "").trim().toUpperCase();
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(createQrSvg(text))}`;
+}
+
+function createQrSvg(text) {
+  const modules = createQrModules(text);
+  const quiet = 4;
+  const viewSize = QR_SIZE + quiet * 2;
+  const rects = [];
+  for (let row = 0; row < QR_SIZE; row += 1) {
+    for (let col = 0; col < QR_SIZE; col += 1) {
+      if (modules[row][col]) rects.push(`<rect x="${col + quiet}" y="${row + quiet}" width="1" height="1"/>`);
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewSize} ${viewSize}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${viewSize}v${viewSize}H0z"/><g fill="#17231f">${rects.join("")}</g></svg>`;
+}
+
+function createQrModules(text) {
+  const modules = Array.from({ length: QR_SIZE }, () => Array(QR_SIZE).fill(false));
+  const reserved = Array.from({ length: QR_SIZE }, () => Array(QR_SIZE).fill(false));
+  addQrFunctionPatterns(modules, reserved);
+  addQrData(modules, reserved, createQrCodewords(text));
+  const mask = chooseQrMask(modules, reserved);
+  applyQrMask(modules, reserved, mask);
+  addQrFormatBits(modules, reserved, mask);
+  return modules;
+}
+
+function createQrCodewords(text) {
+  const bytes = new TextEncoder().encode(text);
+  if (bytes.length > 78) {
+    throw new Error("Kode kupon terlalu panjang untuk QR lokal.");
+  }
+
+  const bits = [0, 1, 0, 0];
+  appendQrBits(bits, bytes.length, 8);
+  bytes.forEach((byte) => appendQrBits(bits, byte, 8));
+  const capacity = QR_DATA_CODEWORDS * 8;
+  appendQrBits(bits, 0, Math.min(4, capacity - bits.length));
+  while (bits.length % 8) bits.push(0);
+
+  const data = [];
+  for (let index = 0; index < bits.length; index += 8) {
+    data.push(Number.parseInt(bits.slice(index, index + 8).join(""), 2));
+  }
+  for (let pad = 0; data.length < QR_DATA_CODEWORDS; pad += 1) {
+    data.push(pad % 2 === 0 ? 0xec : 0x11);
+  }
+  return [...data, ...createQrEcc(data, QR_ECC_CODEWORDS)];
+}
+
+function appendQrBits(bits, value, length) {
+  for (let index = length - 1; index >= 0; index -= 1) {
+    bits.push((value >>> index) & 1);
+  }
+}
+
+function addQrFunctionPatterns(modules, reserved) {
+  addQrFinder(modules, reserved, 0, 0);
+  addQrFinder(modules, reserved, QR_SIZE - 7, 0);
+  addQrFinder(modules, reserved, 0, QR_SIZE - 7);
+  addQrAlignment(modules, reserved, 26, 26);
+
+  for (let index = 8; index < QR_SIZE - 8; index += 1) {
+    setQrModule(modules, reserved, index, 6, index % 2 === 0, true);
+    setQrModule(modules, reserved, 6, index, index % 2 === 0, true);
+  }
+
+  setQrModule(modules, reserved, 8, QR_SIZE - 8, true, true);
+  for (let index = 0; index < 9; index += 1) {
+    if (index !== 6) {
+      setQrModule(modules, reserved, 8, index, false, true);
+      setQrModule(modules, reserved, index, 8, false, true);
+    }
+  }
+  for (let index = QR_SIZE - 7; index < QR_SIZE; index += 1) {
+    setQrModule(modules, reserved, 8, index, false, true);
+  }
+  for (let index = QR_SIZE - 8; index < QR_SIZE; index += 1) {
+    setQrModule(modules, reserved, index, 8, false, true);
+  }
+}
+
+function addQrFinder(modules, reserved, left, top) {
+  for (let row = -1; row <= 7; row += 1) {
+    for (let col = -1; col <= 7; col += 1) {
+      const x = left + col;
+      const y = top + row;
+      if (x < 0 || y < 0 || x >= QR_SIZE || y >= QR_SIZE) continue;
+      const isFinder = col >= 0 && col <= 6 && row >= 0 && row <= 6
+        && (col === 0 || col === 6 || row === 0 || row === 6 || (col >= 2 && col <= 4 && row >= 2 && row <= 4));
+      setQrModule(modules, reserved, x, y, isFinder, true);
+    }
+  }
+}
+
+function addQrAlignment(modules, reserved, centerX, centerY) {
+  for (let row = -2; row <= 2; row += 1) {
+    for (let col = -2; col <= 2; col += 1) {
+      const isDark = Math.max(Math.abs(col), Math.abs(row)) !== 1;
+      setQrModule(modules, reserved, centerX + col, centerY + row, isDark, true);
+    }
+  }
+}
+
+function addQrData(modules, reserved, codewords) {
+  const bits = codewords.flatMap((byte) => Array.from({ length: 8 }, (_, index) => (byte >>> (7 - index)) & 1));
+  let bitIndex = 0;
+  let direction = -1;
+  for (let right = QR_SIZE - 1; right > 0; right -= 2) {
+    if (right === 6) right -= 1;
+    for (let vertical = 0; vertical < QR_SIZE; vertical += 1) {
+      const row = direction === -1 ? QR_SIZE - 1 - vertical : vertical;
+      for (let offset = 0; offset < 2; offset += 1) {
+        const col = right - offset;
+        if (!reserved[row][col]) {
+          modules[row][col] = Boolean(bits[bitIndex]);
+          bitIndex += 1;
+        }
+      }
+    }
+    direction *= -1;
+  }
+}
+
+function chooseQrMask(modules, reserved) {
+  let bestMask = 0;
+  let bestPenalty = Infinity;
+  for (let mask = 0; mask < 8; mask += 1) {
+    const candidate = modules.map((row) => row.slice());
+    applyQrMask(candidate, reserved, mask);
+    const penalty = scoreQrMask(candidate);
+    if (penalty < bestPenalty) {
+      bestPenalty = penalty;
+      bestMask = mask;
+    }
+  }
+  return bestMask;
+}
+
+function applyQrMask(modules, reserved, mask) {
+  for (let row = 0; row < QR_SIZE; row += 1) {
+    for (let col = 0; col < QR_SIZE; col += 1) {
+      if (!reserved[row][col] && qrMaskBit(mask, row, col)) modules[row][col] = !modules[row][col];
+    }
+  }
+}
+
+function qrMaskBit(mask, row, col) {
+  return [
+    (row + col) % 2 === 0,
+    row % 2 === 0,
+    col % 3 === 0,
+    (row + col) % 3 === 0,
+    (Math.floor(row / 2) + Math.floor(col / 3)) % 2 === 0,
+    ((row * col) % 2) + ((row * col) % 3) === 0,
+    (((row * col) % 2) + ((row * col) % 3)) % 2 === 0,
+    (((row + col) % 2) + ((row * col) % 3)) % 2 === 0,
+  ][mask];
+}
+
+function addQrFormatBits(modules, reserved, mask) {
+  const bits = createQrFormatBits(mask);
+  const first = [[8, 0], [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [8, 7], [8, 8], [7, 8], [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8]];
+  const second = [[QR_SIZE - 1, 8], [QR_SIZE - 2, 8], [QR_SIZE - 3, 8], [QR_SIZE - 4, 8], [QR_SIZE - 5, 8], [QR_SIZE - 6, 8], [QR_SIZE - 7, 8], [QR_SIZE - 8, 8], [8, QR_SIZE - 7], [8, QR_SIZE - 6], [8, QR_SIZE - 5], [8, QR_SIZE - 4], [8, QR_SIZE - 3], [8, QR_SIZE - 2], [8, QR_SIZE - 1]];
+  first.forEach(([x, y], index) => setQrModule(modules, reserved, x, y, Boolean((bits >>> index) & 1), true));
+  second.forEach(([x, y], index) => setQrModule(modules, reserved, x, y, Boolean((bits >>> index) & 1), true));
+}
+
+function createQrFormatBits(mask) {
+  let value = (1 << 3) | mask;
+  let remainder = value << 10;
+  const generator = 0x537;
+  for (let bit = 14; bit >= 10; bit -= 1) {
+    if ((remainder >>> bit) & 1) remainder ^= generator << (bit - 10);
+  }
+  return ((value << 10) | remainder) ^ 0x5412;
+}
+
+function scoreQrMask(modules) {
+  let penalty = 0;
+  for (let row = 0; row < QR_SIZE; row += 1) penalty += scoreQrLine(modules[row]);
+  for (let col = 0; col < QR_SIZE; col += 1) penalty += scoreQrLine(modules.map((row) => row[col]));
+  for (let row = 0; row < QR_SIZE - 1; row += 1) {
+    for (let col = 0; col < QR_SIZE - 1; col += 1) {
+      const color = modules[row][col];
+      if (modules[row][col + 1] === color && modules[row + 1][col] === color && modules[row + 1][col + 1] === color) penalty += 3;
+    }
+  }
+  const dark = modules.flat().filter(Boolean).length;
+  penalty += Math.floor(Math.abs((dark * 100) / (QR_SIZE * QR_SIZE) - 50) / 5) * 10;
+  return penalty;
+}
+
+function scoreQrLine(line) {
+  let penalty = 0;
+  let runColor = line[0];
+  let runLength = 1;
+  for (let index = 1; index < line.length; index += 1) {
+    if (line[index] === runColor) {
+      runLength += 1;
+    } else {
+      if (runLength >= 5) penalty += runLength - 2;
+      runColor = line[index];
+      runLength = 1;
+    }
+  }
+  if (runLength >= 5) penalty += runLength - 2;
+  return penalty;
+}
+
+function setQrModule(modules, reserved, x, y, value, isReserved = false) {
+  modules[y][x] = Boolean(value);
+  if (isReserved) reserved[y][x] = true;
+}
+
+function createQrEcc(data, degree) {
+  const generator = createQrGenerator(degree);
+  const remainder = Array(degree).fill(0);
+  data.forEach((byte) => {
+    const factor = byte ^ remainder.shift();
+    remainder.push(0);
+    generator.forEach((coefficient, index) => {
+      remainder[index] ^= qrGfMultiply(coefficient, factor);
+    });
+  });
+  return remainder;
+}
+
+function createQrGenerator(degree) {
+  let result = [1];
+  for (let index = 0; index < degree; index += 1) {
+    const next = Array(result.length + 1).fill(0);
+    result.forEach((coefficient, coefficientIndex) => {
+      next[coefficientIndex] ^= qrGfMultiply(coefficient, 1);
+      next[coefficientIndex + 1] ^= qrGfMultiply(coefficient, qrGfPow(index));
+    });
+    result = next;
+  }
+  return result.slice(1);
+}
+
+function qrGfPow(power) {
+  let value = 1;
+  for (let index = 0; index < power; index += 1) value = qrGfMultiply(value, 2);
+  return value;
+}
+
+function qrGfMultiply(left, right) {
+  let result = 0;
+  for (let index = 0; index < 8; index += 1) {
+    if ((right >>> index) & 1) result ^= left << index;
+  }
+  for (let index = 14; index >= 8; index -= 1) {
+    if ((result >>> index) & 1) result ^= 0x11d << (index - 8);
+  }
+  return result & 0xff;
 }
 
 function printCouponTemplates(couponIds) {
